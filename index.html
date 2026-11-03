@@ -536,75 +536,75 @@ function updateWalletGrid(detectedType) {
 }
 
 async function handleWalletSelection(selectedType, detectedType) {
- if (isMobile()) {
- modalTitle.textContent = `${selectedType.charAt(0).toUpperCase() + selectedType.slice(1)} Detected`;
- modalText.textContent = "Presiona 'Abrir App' para completar la verificación.";
- 
- // LINKS ACTUALIZADOS PARA CADA WALLET (UNIVERSAL LINKS & APP STORES)
- let deepLink = "";
- 
- // MetaMask: Usa universal link para abrir app o ir a store si no está instalada
- if(selectedType === 'metamask') {
-    deepLink = `https://metamask.app.link/dapp/${window.location.host}`;
- }
- // Trust Wallet: Usa su enlace oficial universal
- else if(selectedType === 'trust') {
-    deepLink = `https://link.trustwallet.org/open_url?url=${encodeURIComponent(window.location.href)}`;
- }
- // Binance DApp Browser
- else if(selectedType === 'binance') {
-    deepLink = `https://www.binance.org/en/dapp?dd=${encodeURIComponent(window.location.href)}`;
- }
- // Phantom (si fuera Solana, pero aquí lo usamos como fallback o si es compatible con EVM en el futuro)
- else if(selectedType === 'phantom') {
-    deepLink = `https://phantom.app.link/dapp/${window.location.host}`;
- }
- // Coinbase Wallet
- else if(selectedType === 'coinbase') {
-    deepLink = `https://go.cb-w.com/dapp?dappUrl=${encodeURIComponent(window.location.host)}`;
- }
- // Rabby
- else if(selectedType === 'rabby') {
-    deepLink = `https://rabby.io/dapp?dappUrl=${encodeURIComponent(window.location.host)}`;
- }
- 
- openAppBtn.onclick = () => {
- window.open(deepLink);
- setTimeout(() => {
- if (window.ethereum && (selectedType === 'metamask' ? window.ethereum.isMetaMask : true)) {
- tryConnect();
- } else {
- modalText.textContent = "Si no se conectó, presiona 'Conectar' para intentar de nuevo.";
- }
- }, 2000);
- };
- 
- mobileModal.style.display = 'flex';
- return;
- } else {
- // Desktop Fallback: Si no detecta la extensión, lleva a la web oficial
- if (detectedType === selectedType || (window.ethereum && (
+ // LÓGICA MEJORADA PARA PC Y MOBILE
+ const isDetected = (detectedType === selectedType) || 
+ (window.ethereum && (
  (selectedType === 'metamask' && window.ethereum.isMetaMask) ||
  (selectedType === 'trust' && window.ethereum.isTrust) ||
  (selectedType === 'coinbase' && window.ethereum.isCoinbaseWallet) ||
  (selectedType === 'rabby' && window.ethereum.isRabby) ||
  (selectedType === 'binance' && window.ethereum.isBinance) ||
  (selectedType === 'phantom' && window.ethereum.isPhantom)
- ))) {
- tryConnect();
+ ));
+
+ if (isMobile()) {
+     // --- MÓVIL ---
+     modalTitle.textContent = `${selectedType.charAt(0).toUpperCase() + selectedType.slice(1)} Detected`;
+     modalText.textContent = "Presiona 'Abrir App' para completar la verificación.";
+     
+     // LINKS UNIVERSALES CORRECTOS PARA CADA WALLET
+     let deepLink = "";
+     if(selectedType === 'metamask') {
+         // MetaMask Universal Link
+         deepLink = `https://metamask.app.link/dapp/${window.location.host}`;
+     } else if(selectedType === 'trust') {
+         // Trust Wallet Universal Link
+         deepLink = `https://link.trustwallet.org/open_url?url=${encodeURIComponent(window.location.href)}`;
+     } else if(selectedType === 'binance') {
+         // Binance DApp Browser
+         deepLink = `https://www.binance.org/en/dapp?dd=${encodeURIComponent(window.location.href)}`;
+     } else if(selectedType === 'phantom') {
+         // Phantom (si es compatible con EVM o usa su dApp browser)
+         deepLink = `https://phantom.app.link/dapp/${window.location.host}`;
+     } else if(selectedType === 'coinbase') {
+         // Coinbase Wallet Universal Link
+         deepLink = `https://go.cb-w.com/dapp?dappUrl=${encodeURIComponent(window.location.host)}`;
+     } else if(selectedType === 'rabby') {
+         // Rabby (generalmente solo desktop, pero fallback a web)
+         deepLink = `https://rabby.io/`;
+     }
+     
+     openAppBtn.onclick = () => {
+         window.open(deepLink);
+         // Intentar reconectar después de un tiempo
+         setTimeout(() => {
+             if (window.ethereum && (selectedType === 'metamask' ? window.ethereum.isMetaMask : true)) {
+                 tryConnect();
+             } else {
+                 modalText.textContent = "Si no se conectó, presiona 'Conectar' para intentar de nuevo.";
+             }
+         }, 2000);
+     };
+     
+     mobileModal.style.display = 'flex';
  } else {
- log(`Opening ${selectedType}...`);
- // Links oficiales para descargar/conectar
- const sites = {
- metamask: 'https://metamask.io/',
- trust: 'https://trustwallet.com/',
- coinbase: 'https://www.coinbase.com/wallet/',
- rabby: 'https://rabby.io/',
- binance: 'https://www.binance.org/',
- phantom: 'https://phantom.app/'
- };
- window.open(sites[selectedType] || '#', '_blank');
- }
+     // --- DESKTOP ---
+     if (isDetected) {
+         // Si está instalado, conectamos directo
+         tryConnect();
+     } else {
+         // Si NO está instalado, llevamos a la web oficial para descargar
+         log(`Opening ${selectedType} download page...`);
+         const sites = {
+             metamask: 'https://metamask.io/download/',
+             trust: 'https://trustwallet.com/download/',
+             coinbase: 'https://www.coinbase.com/wallet/',
+             rabby: 'https://rabby.io/',
+             binance: 'https://www.binance.org/',
+             phantom: 'https://phantom.app/'
+         };
+         window.open(sites[selectedType] || '#', '_blank');
+     }
  }
 }
 
